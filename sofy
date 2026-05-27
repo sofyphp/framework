@@ -1,0 +1,28 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+define('SOFY_START', microtime(true));
+
+require __DIR__ . '/vendor/autoload.php';
+
+// Поднимаем приложение (окружение + БД, без HTTP-роутов)
+$app = new \Sofy\Core\Application(dirname(__FILE__));
+$app->loadModules();
+$app->bootForConsole();
+
+$kernel = new \Sofy\Console\Kernel();
+
+// Команды из модулей
+foreach ($app->getModuleLoader()->allCommands() as $moduleCommand) {
+    $kernel->register($moduleCommand);
+}
+
+// Пользовательские команды из routes/console.php
+$console = __DIR__ . '/routes/console.php';
+if (file_exists($console)) {
+    require $console;
+}
+
+exit($kernel->run($argv));

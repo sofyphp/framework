@@ -1,0 +1,11 @@
+/vendor/
+/storage/logs/*.log
+/storage/cache/*
+!/storage/cache/.gitkeep
+.env
+.DS_Store
+*.swp
+/.idea/
+/.claude/
+/.agents/
+/skills-lock.json
