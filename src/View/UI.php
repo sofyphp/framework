@@ -32,6 +32,7 @@ use Sofy\View\UI\Form;
 use Sofy\View\UI\Grid;
 use Sofy\View\UI\Heading;
 use Sofy\View\UI\Hero;
+use Sofy\View\UI\Icon;
 use Sofy\View\UI\KeyValue;
 use Sofy\View\UI\NavBar;
 use Sofy\View\UI\OrderedList;
@@ -195,6 +196,22 @@ class UI
     public static function hero(string $title, string $subtitle = ''): Hero
     {
         return new Hero($title, $subtitle);
+    }
+
+    /**
+     * Render a named SVG icon from \Sofy\View\Icons. Accepts kebab-case
+     * ('user-plus'), snake_case ('user_plus') or upper ('USER_PLUS').
+     *
+     *   UI::icon('home')                          // 16px, inherits color
+     *   UI::icon('alert-triangle', size: 20)
+     *   UI::icon('check-circle', color: 'var(--success)', strokeWidth: 2)
+     *
+     * Unknown names render as an empty marker span (data-name set) so
+     * typos are obvious in DevTools without breaking the layout.
+     */
+    public static function icon(string $name, int $size = 16, string $color = 'currentColor', int $strokeWidth = 2): Icon
+    {
+        return new Icon($name, $size, $color, $strokeWidth);
     }
 
     // ── Content ───────────────────────────────────────────────────────────────
