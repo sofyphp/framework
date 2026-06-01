@@ -47,6 +47,7 @@ use Sofy\Console\Commands\MakeFactoryCommand;
 use Sofy\Console\Commands\MakeObserverCommand;
 use Sofy\Console\Commands\ServeCommand;
 use Sofy\Console\Commands\UpdateCommand;
+use Sofy\Console\Commands\AdminCreateCommand;
 
 class Kernel
 {
@@ -58,6 +59,7 @@ class Kernel
         $this->register(ServeCommand::class);
         $this->register(FullInstallCommand::class);
         $this->register(UpdateCommand::class);
+        $this->register(AdminCreateCommand::class);
         $this->register(ListCommand::class);
         $this->register(MakeControllerCommand::class);
         $this->register(MakeJobCommand::class);
