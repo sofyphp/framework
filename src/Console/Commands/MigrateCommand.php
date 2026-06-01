@@ -114,13 +114,19 @@ class MigrateCommand extends Command
 
     private function ensureMigrationsTable(): void
     {
-        $this->db->execute('
+        $driver = $this->db->getPdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);
+        $idCol  = match ($driver) {
+            'pgsql'  => 'id SERIAL PRIMARY KEY',
+            'sqlite' => 'id INTEGER PRIMARY KEY AUTOINCREMENT',
+            default  => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY',
+        };
+        $this->db->execute("
             CREATE TABLE IF NOT EXISTS migrations (
-                id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                $idCol,
                 migration VARCHAR(255) NOT NULL,
                 batch     INT NOT NULL
             )
-        ');
+        ");
     }
 
     private function getRanMigrations(): array
