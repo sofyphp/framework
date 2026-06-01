@@ -415,6 +415,15 @@ class FullInstallCommand extends Command
         $this->replaceInEnv($env, 'APP_ENV',   'production');
         $this->replaceInEnv($env, 'APP_DEBUG', 'false');
         $this->replaceInEnv($env, 'APP_URL',   "https://$cfg[domain]");
+
+        // Generate APP_KEY (the .env.example template doesn't ship one).
+        // Sessions, cookies and the AES-256 cipher all need this; without
+        // it the app silently degrades to unsigned cookies and broken
+        // crypt(). Delegate to the key:generate command so the algorithm
+        // stays in one place.
+        $sofy = base_path('sofy');
+        $this->exec('php ' . escapeshellarg($sofy) . ' key:generate >/dev/null 2>&1');
+
         $this->success('.env created from .env.example — DB credentials will be written in the next step.');
 
         return true;
@@ -742,8 +751,18 @@ class FullInstallCommand extends Command
 
     private function replaceInEnv(string $file, string $key, string $value): void
     {
-        $content = (string) file_get_contents($file);
-        $content = preg_replace("/^$key=.*/m", "$key=$value", $content) ?? $content;
+        $content   = (string) file_get_contents($file);
+        $line      = "$key=$value";
+        $pattern   = "/^" . preg_quote($key, '/') . "=.*/m";
+
+        if (preg_match($pattern, $content) === 1) {
+            $content = (string) preg_replace($pattern, $line, $content);
+        } else {
+            // Key missing from the template — append rather than silently
+            // dropping it. Otherwise the framework sees the .env.example
+            // default for that var, which usually isn't what we want.
+            $content = rtrim($content, "\n") . "\n" . $line . "\n";
+        }
         file_put_contents($file, $content);
     }
 
@@ -944,13 +963,12 @@ class FullInstallCommand extends Command
             return;
         }
 
-        $connection = match ($driver) {
-            'pgsql'  => 'pgsql',
-            'sqlite' => 'sqlite',
-            default  => 'mysql',
-        };
-
-        $this->replaceInEnv($envFile, 'DB_CONNECTION', $connection);
+        // config/database.php reads DB_DRIVER (not DB_CONNECTION — that's a
+        // Laravel convention). Writing the wrong key here silently leaves the
+        // driver at the .env.example default (mysql), and any subsequent PDO
+        // connection attempt fails — bootDatabase() catches it silently and
+        // migrations later die with "No database connection configured."
+        $this->replaceInEnv($envFile, 'DB_DRIVER', $driver);
 
         if ($driver === 'sqlite') {
             $this->replaceInEnv($envFile, 'DB_DATABASE', base_path('database/database.sqlite'));
