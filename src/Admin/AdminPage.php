@@ -92,7 +92,7 @@ class AdminPage
              . '<nav class="sofy-admin-nav">';
 
         // Always-on "Dashboard" entry, plus a divider before the first dynamic section.
-        $out .= $this->renderItemRaw('Dashboard', '/admin', '◈', $currentPath === '/admin' || $currentPath === '/admin/');
+        $out .= $this->renderItemRaw('Dashboard', '/admin', Icons::DASHBOARD, $currentPath === '/admin' || $currentPath === '/admin/');
 
         if (!empty($sections)) {
             $out .= '<div class="sofy-admin-divider"></div>';
@@ -128,7 +128,18 @@ class AdminPage
     private function renderItemRaw(string $label, string $url, string $icon, bool $active, ?string $badge = null): string
     {
         $cls = 'sofy-admin-item' . ($active ? ' active' : '');
-        $iconHtml = $icon !== '' ? '<span class="sofy-admin-icon">' . htmlspecialchars($icon, ENT_QUOTES, 'UTF-8') . '</span>' : '';
+
+        // Allow either text/emoji icons (escaped) or inline SVG (embedded raw
+        // — Icons::* constants come through this path). Detect by sniffing
+        // the first non-whitespace chars for "<svg".
+        $iconHtml = '';
+        if ($icon !== '') {
+            $isSvg = str_starts_with(ltrim($icon), '<svg');
+            $iconHtml = '<span class="sofy-admin-icon">'
+                . ($isSvg ? $icon : htmlspecialchars($icon, ENT_QUOTES, 'UTF-8'))
+                . '</span>';
+        }
+
         $badgeHtml = $badge !== null
             ? '<span class="sofy-admin-badge">' . htmlspecialchars($badge, ENT_QUOTES, 'UTF-8') . '</span>'
             : '';

@@ -45,17 +45,31 @@ class DatabaseController
             } catch (\Throwable) {
                 $count = 0;
             }
-            $rows[] = [
-                'table' => UI::raw('<a class="sofy-docs-a" href="/admin/database/table/' . rawurlencode($t) . '">' . htmlspecialchars($t, ENT_QUOTES, 'UTF-8') . '</a>'),
-                'rows'  => number_format($count),
-            ];
+            // Store the raw table name + count. Linking + number formatting
+            // happens in the cols closures below — string-keyed cells go
+            // through htmlspecialchars (the right default for DB-sourced
+            // data), so embedding an <a> directly here would print the tag
+            // as literal text.
+            $rows[] = ['table' => $t, 'rows' => $count];
         }
 
         $consoleBtn = UI::button('SQL Console', '/admin/database/sql', 'primary');
 
         $body = empty($rows)
             ? UI::emptyState('No tables', 'The database is reachable but has no tables — run migrations to create some.', icon: '🗄')
-            : UI::dataTable(['Table', 'Rows'], $rows, ['table', 'rows'], perPage: 50);
+            : UI::dataTable(
+                ['Table', 'Rows'],
+                $rows,
+                [
+                    static fn(array $r): mixed => UI::raw(
+                        '<a class="sofy-docs-a" href="/admin/database/table/' . rawurlencode((string) $r['table']) . '">'
+                        . htmlspecialchars((string) $r['table'], ENT_QUOTES, 'UTF-8')
+                        . '</a>',
+                    ),
+                    static fn(array $r): string => number_format((int) $r['rows']),
+                ],
+                perPage: 50,
+            );
 
         return Admin::page('Database')
             ->header("Tables ({$conn->getDriverName()})", $consoleBtn)
@@ -200,7 +214,7 @@ class DatabaseController
             ->header('SQL Console', UI::button('← Tables', '/admin/database', 'ghost'))
             ->add(
                 $banner,
-                UI::card(null, $form, ''),
+                UI::card(null, $form),
             );
 
         if ($resultPane !== null) {

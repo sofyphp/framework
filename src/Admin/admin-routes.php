@@ -15,6 +15,7 @@ use Sofy\Admin\Controllers\DashboardController;
 use Sofy\Admin\Controllers\DatabaseController;
 use Sofy\Admin\Controllers\SystemController;
 use Sofy\Admin\Controllers\UsersController;
+use Sofy\Admin\Icons;
 use Sofy\Admin\Middleware\EnsureAdmin;
 use Sofy\Http\Router;
 
@@ -39,13 +40,13 @@ $router->group(['prefix' => 'admin', 'middleware' => [EnsureAdmin::class]], func
 // Module::register() — those registrations run before this file loads, so
 // module items are already in the panel by the time the chrome renders.
 Admin::menu()->add('users', 'Users', '/admin/users')
-    ->icon('👥')->section('Manage')->order(10);
+    ->icon(Icons::USERS)->section('Manage')->order(10);
 
-Admin::menu()->add('system',         'Overview',     '/admin/system')
-    ->icon('⚙')->section('System')->order(10);
-Admin::menu()->add('system.modules', 'Modules',      '/admin/system/modules')
-    ->icon('📦')->section('System')->order(20);
-Admin::menu()->add('database',       'Database',     '/admin/database')
-    ->icon('🗄')->section('System')->order(30);
-Admin::menu()->add('database.sql',   'SQL Console',  '/admin/database/sql')
-    ->icon('⚡')->section('System')->order(40);
+Admin::menu()->add('system',         'Overview',    '/admin/system')
+    ->icon(Icons::SETTINGS)->section('System')->order(10);
+Admin::menu()->add('system.modules', 'Modules',     '/admin/system/modules')
+    ->icon(Icons::BOX)->section('System')->order(20);
+Admin::menu()->add('database',       'Database',    '/admin/database')
+    ->icon(Icons::DATABASE)->section('System')->order(30);
+Admin::menu()->add('database.sql',   'SQL Console', '/admin/database/sql')
+    ->icon(Icons::TERMINAL)->section('System')->order(40);
