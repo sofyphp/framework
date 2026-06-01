@@ -122,14 +122,19 @@ class Blueprint
         //    where possible. For drivers that don't accept inline UNIQUE KEY
         //    inside CREATE TABLE (pgsql, sqlite), we render them as table
         //    constraints — same effect.
+        //
+        //    Names are prefixed with the table — in MySQL, index names are
+        //    scoped per-table, but in PostgreSQL constraint names live in the
+        //    schema namespace, so a bare `uniq_email` on users would collide
+        //    with the same name on password_reset_tokens.
         foreach ($this->columns as $col) {
             if ($col->shouldAddUniqueKey()) {
-                $lines[] = $this->buildIndexLine($g, 'UNIQUE', "uniq_{$col->name}", [$col->name]);
+                $lines[] = $this->buildIndexLine($g, 'UNIQUE', "uniq_{$table}_{$col->name}", [$col->name]);
             } elseif ($col->shouldAddIndex() && $g instanceof MySqlGrammar) {
                 // KEY / INDEX inside CREATE TABLE is MySQL-only; for the
                 // others we emit a CREATE INDEX after the table is built
                 // (see Schema::create()). Skip here.
-                $lines[] = "  KEY " . $g->quoteId("idx_{$col->name}") . ' (' . $g->quoteId($col->name) . ')';
+                $lines[] = '  KEY ' . $g->quoteId("idx_{$table}_{$col->name}") . ' (' . $g->quoteId($col->name) . ')';
             }
         }
 
@@ -174,7 +179,7 @@ class Blueprint
         $out = [];
         foreach ($this->columns as $col) {
             if ($col->shouldAddIndex() && !$col->shouldAddUniqueKey()) {
-                $out[] = 'CREATE INDEX ' . $g->quoteId("idx_{$col->name}")
+                $out[] = 'CREATE INDEX ' . $g->quoteId("idx_{$table}_{$col->name}")
                        . ' ON ' . $g->quoteId($table)
                        . ' (' . $g->quoteId($col->name) . ')';
             }
