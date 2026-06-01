@@ -158,6 +158,16 @@ class Application
                 $r->load($api);
             });
         }
+
+        // Built-in admin panel — registers /admin/* routes and the stock menu
+        // items. Loaded *after* the app's own routes so an application can
+        // override anything by registering the same URL in routes/web.php.
+        // Modules contribute extra admin pages and menu items in their own
+        // routes.php / Module::register(), independently of this file.
+        $admin = __DIR__ . '/../Admin/admin-routes.php';
+        if (file_exists($admin)) {
+            $router->load($admin);
+        }
     }
 
     public function run(): void
