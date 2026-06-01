@@ -109,6 +109,18 @@ abstract class Grammar
     /** SQL for "does column Y exist on table X?" — table is interpolated, column is parameter. */
     abstract public function hasColumnSql(string $table): string;
 
+    /**
+     * Return all columns of a table as a list of unified rows:
+     *
+     *   [ ['name' => 'id', 'type' => 'bigint', 'nullable' => false, 'default' => null], … ]
+     *
+     * Each driver runs its native catalog query and maps the result so callers
+     * (Schema::columns(), the admin DB browser, …) don't have to.
+     *
+     * @return list<array{name:string,type:string,nullable:bool,default:?string}>
+     */
+    abstract public function columnsForTable(\Sofy\Database\Connection $conn, string $table): array;
+
     // ── To be implemented per driver ─────────────────────────────────────────
 
     /** Translate a generic Sofy column type to the driver's column type. */

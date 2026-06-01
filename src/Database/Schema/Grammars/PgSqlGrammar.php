@@ -47,6 +47,23 @@ class PgSqlGrammar extends Grammar
              . "'" . str_replace("'", "''", $table) . "' AND column_name = ?";
     }
 
+    public function columnsForTable(\Sofy\Database\Connection $conn, string $table): array
+    {
+        $rows = $conn->query(
+            'SELECT column_name, data_type, is_nullable, column_default '
+            . 'FROM information_schema.columns '
+            . 'WHERE table_schema = current_schema() AND table_name = ? '
+            . 'ORDER BY ordinal_position',
+            [$table],
+        );
+        return array_map(static fn(array $r): array => [
+            'name'     => (string) ($r['column_name']    ?? ''),
+            'type'     => (string) ($r['data_type']      ?? ''),
+            'nullable' => ($r['is_nullable']   ?? 'NO') === 'YES',
+            'default'  => isset($r['column_default']) ? (string) $r['column_default'] : null,
+        ], $rows);
+    }
+
     public function pkInlinedInColumn(ColumnDefinition $col): bool
     {
         // SERIAL/BIGSERIAL doesn't imply PRIMARY KEY, so we add it inline

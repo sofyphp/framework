@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 use Sofy\Admin\Admin;
 use Sofy\Admin\Controllers\DashboardController;
+use Sofy\Admin\Controllers\DatabaseController;
+use Sofy\Admin\Controllers\SystemController;
 use Sofy\Admin\Controllers\UsersController;
 use Sofy\Admin\Middleware\EnsureAdmin;
 use Sofy\Http\Router;
@@ -21,11 +23,29 @@ use Sofy\Http\Router;
 $router->group(['prefix' => 'admin', 'middleware' => [EnsureAdmin::class]], function (Router $router): void {
     $router->get('/',      [DashboardController::class, 'index']);
     $router->get('/users', [UsersController::class,     'index']);
+
+    // ── System info ─────────────────────────────────────────────────────────
+    $router->get('/system',         [SystemController::class, 'overview']);
+    $router->get('/system/modules', [SystemController::class, 'modules']);
+
+    // ── Database browser ────────────────────────────────────────────────────
+    $router->get('/database',               [DatabaseController::class, 'index']);
+    $router->get('/database/sql',           [DatabaseController::class, 'sqlConsole']);
+    $router->post('/database/sql',          [DatabaseController::class, 'runSql']);
+    $router->get('/database/table/{table}', [DatabaseController::class, 'show']);
 });
 
-// Stock menu items — modules can add more via Admin::menu()->add(...) from
-// their Module::register() hooks (the registrations happen before this file
-// is loaded, so module items will already be in the panel by the time the
-// dashboard renders them).
+// Stock menu items. Modules add more via Admin::menu()->add(...) from their
+// Module::register() — those registrations run before this file loads, so
+// module items are already in the panel by the time the chrome renders.
 Admin::menu()->add('users', 'Users', '/admin/users')
     ->icon('👥')->section('Manage')->order(10);
+
+Admin::menu()->add('system',         'Overview',     '/admin/system')
+    ->icon('⚙')->section('System')->order(10);
+Admin::menu()->add('system.modules', 'Modules',      '/admin/system/modules')
+    ->icon('📦')->section('System')->order(20);
+Admin::menu()->add('database',       'Database',     '/admin/database')
+    ->icon('🗄')->section('System')->order(30);
+Admin::menu()->add('database.sql',   'SQL Console',  '/admin/database/sql')
+    ->icon('⚡')->section('System')->order(40);

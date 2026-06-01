@@ -36,6 +36,18 @@ class SqliteGrammar extends Grammar
         return "SELECT 1 FROM pragma_table_info('" . $quoted . "') WHERE name = ?";
     }
 
+    public function columnsForTable(\Sofy\Database\Connection $conn, string $table): array
+    {
+        $quoted = str_replace("'", "''", $table);
+        $rows   = $conn->query("PRAGMA table_info('" . $quoted . "')");
+        return array_map(static fn(array $r): array => [
+            'name'     => (string) ($r['name']      ?? ''),
+            'type'     => (string) ($r['type']      ?? ''),
+            'nullable' => (int) ($r['notnull']   ?? 1) === 0,
+            'default'  => isset($r['dflt_value']) ? (string) $r['dflt_value'] : null,
+        ], $rows);
+    }
+
     public function pkInlinedInColumn(ColumnDefinition $col): bool
     {
         return $col->isAutoIncrement();

@@ -23,6 +23,12 @@ class ModuleLoader
     /** @var Module[] */
     private array $modules = [];
 
+    /** @return Module[]  Loaded modules in discovery order. */
+    public function modules(): array
+    {
+        return $this->modules;
+    }
+
     /**
      * Scan a directory for modules and instantiate them.
      * Expected layout: {path}/{Name}/{Name}.php with class Modules\{Name}\{Name}.

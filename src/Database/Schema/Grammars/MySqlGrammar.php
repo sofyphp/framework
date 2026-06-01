@@ -33,6 +33,17 @@ class MySqlGrammar extends Grammar
         return 'SHOW COLUMNS FROM ' . $this->quoteId($table) . ' LIKE ?';
     }
 
+    public function columnsForTable(\Sofy\Database\Connection $conn, string $table): array
+    {
+        $rows = $conn->query('SHOW COLUMNS FROM ' . $this->quoteId($table));
+        return array_map(static fn(array $r): array => [
+            'name'     => (string) ($r['Field']   ?? ''),
+            'type'     => (string) ($r['Type']    ?? ''),
+            'nullable' => ($r['Null']    ?? 'NO') === 'YES',
+            'default'  => isset($r['Default']) ? (string) $r['Default'] : null,
+        ], $rows);
+    }
+
     protected function mapType(string $type, ColumnDefinition $col): string
     {
         $t = $type;
