@@ -6,6 +6,7 @@ namespace Sofy\Admin\Controllers;
 
 use Sofy\Admin\Admin;
 use Sofy\Admin\AdminPanel;
+use Sofy\Admin\AdminWidget;
 use Sofy\Http\Response;
 use Sofy\View\UI;
 
@@ -25,23 +26,56 @@ class DashboardController
                     icon: '◈',
                 ),
             );
-        } else {
-            // Group by cols-per-row using a single 4-column grid; widgets with
-            // larger $cols span more cells (the existing UI grid is 4-col on
-            // wide screens and collapses to 1 below 720px).
-            //
-            // To keep things ergonomic we put every widget in its own UI::card
-            // (controllers can return raw markup if they want a full bleed).
-            $cells = [];
-            foreach ($widgets as $w) {
-                $body  = $w->render();
-                $cells[] = is_object($body) || is_string($body)
-                    ? $body
-                    : implode('', array_map(static fn($c) => (string) $c, (array) $body));
-            }
-            $page->add(UI::grid(4, $cells));
+            return $page->response();
         }
 
+        // Pack widgets into rows by their $cols span. The grid has 4 logical
+        // columns, so cols=1 fits 4-per-row, cols=2 fits 2-per-row, and
+        // cols=4 is rendered full-width on its own line. Widgets are bucketed
+        // by consecutive same-cols runs to keep insertion order predictable.
+        $pending  = [];
+        $pendCols = 0;
+
+        $flush = static function () use (&$pending, &$pendCols, $page): void {
+            if ($pending === []) return;
+            $perRow = max(1, intdiv(4, $pendCols ?: 1));
+            $page->add(UI::grid($perRow, $pending));
+            $pending  = [];
+            $pendCols = 0;
+        };
+
+        foreach ($widgets as $w) {
+            $body = $this->renderBody($w);
+            $cols = max(1, min(4, $w->cols));
+
+            if ($cols === 4) {
+                $flush();
+                $page->add($body);
+                continue;
+            }
+
+            if ($pendCols !== 0 && $pendCols !== $cols) {
+                $flush();
+            }
+            $pendCols = $cols;
+            $pending[] = $body;
+
+            if (count($pending) >= intdiv(4, $cols)) {
+                $flush();
+            }
+        }
+        $flush();
+
         return $page->response();
+    }
+
+    /** Normalise a widget body to one renderable cell (component, string or stringified array). */
+    private function renderBody(AdminWidget $w): mixed
+    {
+        $body = $w->render();
+        if (is_object($body) || is_string($body)) {
+            return $body;
+        }
+        return implode('', array_map(static fn($c) => (string) $c, (array) $body));
     }
 }

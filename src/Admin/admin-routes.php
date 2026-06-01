@@ -15,9 +15,10 @@ use Sofy\Admin\Controllers\DashboardController;
 use Sofy\Admin\Controllers\DatabaseController;
 use Sofy\Admin\Controllers\SystemController;
 use Sofy\Admin\Controllers\UsersController;
-use Sofy\Admin\Icons;
 use Sofy\Admin\Middleware\EnsureAdmin;
+use Sofy\Admin\Widgets;
 use Sofy\Http\Router;
+use Sofy\View\Icons;
 
 /** @var Router $router */
 
@@ -50,3 +51,14 @@ Admin::menu()->add('database',       'Database',    '/admin/database')
     ->icon(Icons::DATABASE)->section('System')->order(30);
 Admin::menu()->add('database.sql',   'SQL Console', '/admin/database/sql')
     ->icon(Icons::TERMINAL)->section('System')->order(40);
+
+// Stock dashboard widgets. Modules can replace any of these by calling
+// Admin::widget(MyWidget::class) — order is governed by the widget's $order
+// property, so a module widget with $order < 0 lands above Welcome.
+Admin::widget(Widgets\WelcomeWidget::class);
+Admin::widget(Widgets\UsersCountWidget::class);
+Admin::widget(Widgets\DatabaseStatsWidget::class);
+Admin::widget(Widgets\ModulesCountWidget::class);
+Admin::widget(Widgets\PhpRuntimeWidget::class);
+Admin::widget(Widgets\QuickActionsWidget::class);
+Admin::widget(Widgets\SystemHealthWidget::class);
