@@ -886,20 +886,33 @@ class FullInstallCommand extends Command
 
     private function configurePostgres(string $name, string $user, string $pass): bool
     {
-        $escapedPass = str_replace("'", "\\'", $pass);
+        // PostgreSQL string literal escape: a single quote is written as ''.
+        $escapedPass = str_replace("'", "''", $pass);
+
+        // Write the create-or-update-role script to a temp file and feed it
+        // to `psql -f`. Doing `psql -c "DO $$ ..."` instead would let bash
+        // expand `$$` to its PID (turning the PL/pgSQL block into garbage
+        // — DO 16358 BEGIN ...) before psql ever sees it.
+        $sqlFile = tempnam(sys_get_temp_dir(), 'sofy-pg-') ?: sys_get_temp_dir() . '/sofy-pg-' . bin2hex(random_bytes(4));
+        file_put_contents($sqlFile, <<<SQL
+            DO \$\$ BEGIN
+                CREATE ROLE $user LOGIN PASSWORD '$escapedPass';
+            EXCEPTION WHEN duplicate_object THEN
+                ALTER ROLE $user WITH PASSWORD '$escapedPass';
+            END \$\$;
+            SQL);
+        @chmod($sqlFile, 0644); // postgres user needs to read it
 
         $ok = $this->runAll([
             'systemctl enable --now postgresql',
-            // create user (ignore if exists) then set password
-            "sudo -u postgres psql -c \"DO \$\$ BEGIN " .
-                "CREATE ROLE $user LOGIN PASSWORD '$escapedPass'; " .
-                "EXCEPTION WHEN duplicate_object THEN " .
-                "ALTER ROLE $user WITH PASSWORD '$escapedPass'; END \$\$;\"",
-            // create database (ignore if exists)
-            "sudo -u postgres psql -c \"SELECT 1 FROM pg_database WHERE datname='$name'\" | grep -q 1 || " .
-                "sudo -u postgres psql -c \"CREATE DATABASE $name OWNER $user\"",
-            "sudo -u postgres psql -c \"GRANT ALL PRIVILEGES ON DATABASE $name TO $user\"",
+            'sudo -u postgres psql -f ' . escapeshellarg($sqlFile),
+            // create database (ignore if it already exists)
+            "sudo -u postgres psql -tAc \"SELECT 1 FROM pg_database WHERE datname='$name'\" | grep -q 1 || "
+                . 'sudo -u postgres psql -c ' . escapeshellarg("CREATE DATABASE $name OWNER $user"),
+            'sudo -u postgres psql -c ' . escapeshellarg("GRANT ALL PRIVILEGES ON DATABASE $name TO $user"),
         ]);
+
+        @unlink($sqlFile);
 
         if ($ok) {
             $this->success("PostgreSQL database '$name' created, user '$user' granted.");

@@ -32,9 +32,14 @@ class UpdateCommand extends Command
 
     public function handle(): int
     {
-        if (!extension_loaded('zip')) {
-            $this->error('ext-zip is required for `php sofy update`.');
-            $this->line('  Install with: sudo apt install php8.3-zip');
+        // Need a way to extract zips: ext-zip (preferred) or the `unzip` CLI.
+        $hasExtZip = extension_loaded('zip');
+        $hasUnzip  = trim((string) shell_exec('command -v unzip 2>/dev/null')) !== '';
+        if (!$hasExtZip && !$hasUnzip) {
+            $phpV = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+            $this->error('Need either ext-zip or the `unzip` CLI to extract the release archive.');
+            $this->line("  sudo apt install php{$phpV}-zip   # PHP extension (preferred)");
+            $this->line('  sudo apt install unzip            # …or the system tool');
             return 1;
         }
 
@@ -98,14 +103,25 @@ class UpdateCommand extends Command
         // ── Extract ──
         $this->info('Extracting…');
         @mkdir($tmpDir, 0755, true);
-        $zip = new \ZipArchive();
-        if ($zip->open($zipF) !== true) {
-            $this->error("Could not open archive: $zipF");
-            $this->cleanup($tmpDir, $zipF);
-            return 1;
+        if ($hasExtZip) {
+            $zip = new \ZipArchive();
+            if ($zip->open($zipF) !== true) {
+                $this->error("Could not open archive: $zipF");
+                $this->cleanup($tmpDir, $zipF);
+                return 1;
+            }
+            $zip->extractTo($tmpDir);
+            $zip->close();
+        } else {
+            // Fallback to the system `unzip` tool. Lets `php sofy update`
+            // bootstrap itself on a server that only has the bare php-cli.
+            $code = $this->execLine('unzip -q ' . escapeshellarg($zipF) . ' -d ' . escapeshellarg($tmpDir));
+            if ($code !== 0) {
+                $this->error("unzip failed (exit $code) on archive: $zipF");
+                $this->cleanup($tmpDir, $zipF);
+                return 1;
+            }
         }
-        $zip->extractTo($tmpDir);
-        $zip->close();
         @unlink($zipF);
 
         // GitHub zipballs nest everything under one top-level dir.
