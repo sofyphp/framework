@@ -153,6 +153,13 @@ class UpdateCommand extends Command
                 }
             }
         }
+
+        // Surgically update the `version` field in composer.json so that
+        // Application::version() reflects the new release. We deliberately
+        // don't overwrite composer.json wholesale — user customisations to
+        // `require`, `autoload`, `scripts`, etc. are preserved.
+        $this->bumpComposerVersion($basePath, ltrim($target, 'v'));
+
         $this->cleanup($tmpDir);
 
         // ── Post-update ──
@@ -371,6 +378,25 @@ class UpdateCommand extends Command
             }
         }
         @rmdir($dir);
+    }
+
+    private function bumpComposerVersion(string $basePath, string $newVersion): void
+    {
+        $path = $basePath . '/composer.json';
+        if (!is_file($path)) {
+            return;
+        }
+        $content = (string) file_get_contents($path);
+        $patched = preg_replace(
+            '/("version"\s*:\s*)"[^"]+"/',
+            '$1' . json_encode($newVersion),
+            $content,
+            1,
+        );
+        if ($patched === null || $patched === $content) {
+            return;
+        }
+        file_put_contents($path, $patched);
     }
 
     private function basePath(): string

@@ -49,10 +49,10 @@ class FullInstallCommand extends Command
         // Step 2 — PHP version
         $this->stepHeader(2, $total, 'PHP Version');
         $php = (string) $this->select('Which PHP version to install?', [
-            '8.3' => 'PHP 8.3  — latest stable (recommended)',
-            '8.2' => 'PHP 8.2  — previous stable',
-            '8.1' => 'PHP 8.1  — LTS',
-        ], '8.3');
+            '8.5' => 'PHP 8.5  — current (recommended on Ubuntu 26.04 / Debian 13)',
+            '8.4' => 'PHP 8.4  — previous stable (Ubuntu 25.10)',
+            '8.3' => 'PHP 8.3  — minimum supported (Ubuntu 24.04 LTS)',
+        ], '8.5');
 
         // Step 3 — Web server
         $this->stepHeader(3, $total, 'Web Server');
@@ -139,7 +139,7 @@ class FullInstallCommand extends Command
     {
         return [
             'domain'     => 'localhost',
-            'php'        => '8.3',
+            'php'        => '8.5',
             'webserver'  => 'caddy',
             'ssl'        => true,
             'email'      => '',
@@ -238,6 +238,15 @@ class FullInstallCommand extends Command
         };
 
         if ($os === 'debian') {
+            // Recover from a broken Ondřej PPA source left over from a
+            // previous failed install on an unsupported Ubuntu codename
+            // (the file makes every subsequent `apt-get update` 404).
+            // Idempotent — silent if no such file exists.
+            if (glob('/etc/apt/sources.list.d/ondrej-*') !== []) {
+                $this->info('Cleaning up Ondřej PPA source from a previous run…');
+                $this->exec('rm -f /etc/apt/sources.list.d/ondrej-*.sources /etc/apt/sources.list.d/ondrej-*.list');
+            }
+
             // Bootstrap: tools needed before touching any third-party repo.
             if (!$this->runAll([
                 'apt-get update -qq',
