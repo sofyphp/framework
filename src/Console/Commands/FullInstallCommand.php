@@ -238,14 +238,26 @@ class FullInstallCommand extends Command
         };
 
         if ($os === 'debian') {
-            $cmds = [
+            // Bootstrap: tools needed before touching any third-party repo.
+            if (!$this->runAll([
                 'apt-get update -qq',
                 "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl gnupg2 ca-certificates unzip cron$extra",
                 'DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common',
-                'LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php 2>/dev/null || true',
-                'apt-get update -qq',
-                "DEBIAN_FRONTEND=noninteractive apt-get install -y $phpPkgs",
-            ];
+            ])) {
+                return false;
+            }
+
+            // Modern Ubuntu LTS already ships PHP 8.3+ in default repos, so
+            // we prefer those and only fall back to Ondřej PPA when needed.
+            // The PPA also lags behind brand-new Ubuntu codenames (e.g.
+            // 26.04 "resolute" right after release): if `apt-get update`
+            // 404s on the PPA source, we strip it back out so subsequent
+            // apt-get calls in this script don't fail.
+            if (!$this->ensurePhpAvailable($phpV)) {
+                return false;
+            }
+
+            $cmds = ["DEBIAN_FRONTEND=noninteractive apt-get install -y $phpPkgs"];
 
             if ($dbServerPkg !== '') {
                 $cmds[] = "DEBIAN_FRONTEND=noninteractive apt-get install -y $dbServerPkg";
@@ -291,6 +303,64 @@ class FullInstallCommand extends Command
         }
 
         return $this->runAll($cmds);
+    }
+
+    /**
+     * Make sure phpX.Y-cli is installable from some apt source. Tries default
+     * repos first; only adds Ondřej PPA when needed; cleans up the PPA source
+     * if it does not yet publish packages for the current Ubuntu codename
+     * (common right after a new Ubuntu release).
+     */
+    private function ensurePhpAvailable(string $phpV): bool
+    {
+        if ($this->aptHas("php$phpV-cli")) {
+            $this->info("PHP $phpV is available from default repositories — skipping PPA.");
+            return true;
+        }
+
+        $this->info("PHP $phpV not in default repositories — adding Ondřej PPA…");
+        $this->exec('LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php');
+
+        if ($this->exec('apt-get update -qq') !== 0) {
+            $this->warn('Ondřej PPA does not publish packages for this Ubuntu release yet.');
+            $this->exec('rm -f /etc/apt/sources.list.d/ondrej-*.sources /etc/apt/sources.list.d/ondrej-*.list');
+            $this->exec('apt-get update -qq');
+        }
+
+        if ($this->aptHas("php$phpV-cli")) {
+            return true;
+        }
+
+        $this->error("Cannot install PHP $phpV on this system.");
+        $this->line('  The Ondřej PPA does not yet publish packages for this Ubuntu codename,');
+        $this->line('  and your default repositories do not carry that version.');
+
+        $available = $this->detectAvailablePhpVersion();
+        if ($available !== null) {
+            $this->line("  Available from default repositories: PHP $available");
+            $this->line("  Re-run full-install and pick that version.");
+        }
+
+        return false;
+    }
+
+    private function aptHas(string $package): bool
+    {
+        return $this->exec('apt-cache show ' . escapeshellarg($package) . ' >/dev/null 2>&1') === 0;
+    }
+
+    /**
+     * Read the version that the system's meta `php-cli` package depends on
+     * (e.g. "php-cli depends on php8.4-cli" on Ubuntu 25.10+). Used purely
+     * to print a helpful hint when the requested version is unavailable.
+     */
+    private function detectAvailablePhpVersion(): ?string
+    {
+        $out = (string) shell_exec('apt-cache depends php-cli 2>/dev/null');
+        if (preg_match('/php(\d+\.\d+)-cli/', $out, $m)) {
+            return $m[1];
+        }
+        return null;
     }
 
     // ── Step: Composer ────────────────────────────────────────────────────────
