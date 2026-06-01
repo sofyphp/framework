@@ -69,9 +69,9 @@ class FullInstallCommand extends Command
         // Step 5 — Database
         $this->stepHeader(5, $total, 'Database');
         $db = (string) $this->select('Which database driver?', [
-            'mysql'  => 'MySQL / MariaDB  — fully supported (recommended)',
-            'pgsql'  => 'PostgreSQL       — experimental: connection works, ORM still emits MySQL syntax',
-            'sqlite' => 'SQLite           — experimental: file-based, no server needed',
+            'mysql'  => 'MySQL / MariaDB  — most common',
+            'pgsql'  => 'PostgreSQL       — advanced SQL, JSONB, transactional DDL',
+            'sqlite' => 'SQLite           — file-based, no server needed',
         ], 'mysql');
 
         [$db_name, $db_user, $db_pass] = $this->askDbCredentials($db);

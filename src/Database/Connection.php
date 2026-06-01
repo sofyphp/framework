@@ -106,4 +106,15 @@ class Connection
     {
         return $this->pdo;
     }
+
+    /**
+     * Returns the underlying PDO driver name — 'mysql', 'pgsql' or 'sqlite'.
+     * Schema, Blueprint and QueryBuilder use this to dispatch to a Grammar
+     * that translates the framework's generic SQL into driver-specific
+     * syntax.
+     */
+    public function getDriverName(): string
+    {
+        return (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    }
 }

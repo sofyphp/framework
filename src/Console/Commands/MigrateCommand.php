@@ -98,13 +98,19 @@ class MigrateCommand extends Command
             return 0;
         }
 
-        $tables = $this->db->query('SHOW TABLES');
-        $this->db->execute('SET FOREIGN_KEY_CHECKS = 0');
+        $grammar = \Sofy\Database\Schema\Grammar::forConnection($this->db);
+
+        $tables = $this->db->query($grammar->listTablesSql());
+        if ($disable = $grammar->disableFKsSql()) {
+            $this->db->execute($disable);
+        }
         foreach ($tables as $row) {
             $table = array_values($row)[0];
-            $this->db->execute("DROP TABLE IF EXISTS `$table`");
+            $this->db->execute('DROP TABLE IF EXISTS ' . $grammar->quoteId($table));
         }
-        $this->db->execute('SET FOREIGN_KEY_CHECKS = 1');
+        if ($enable = $grammar->enableFKsSql()) {
+            $this->db->execute($enable);
+        }
 
         $this->warn('All tables dropped.');
         return $this->migrate();

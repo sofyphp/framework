@@ -138,13 +138,18 @@ class ModuleInstallCommand extends Command
 
     private function ensureMigrationsTable(Connection $db): void
     {
-        $db->execute('
+        $idCol = match ($db->getDriverName()) {
+            'pgsql'  => 'id SERIAL PRIMARY KEY',
+            'sqlite' => 'id INTEGER PRIMARY KEY AUTOINCREMENT',
+            default  => 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY',
+        };
+        $db->execute("
             CREATE TABLE IF NOT EXISTS migrations (
-                id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                $idCol,
                 migration VARCHAR(255) NOT NULL,
                 batch     INT NOT NULL
             )
-        ');
+        ");
     }
 
     private function registerComposerNamespace(string $name, Application $app): void

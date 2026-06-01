@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Sofy\Database;
 
+use Sofy\Database\Schema\Grammar;
+
 class QueryBuilder
 {
     private string $table   = '';
@@ -20,7 +22,15 @@ class QueryBuilder
     private ?int   $offsetVal = null;
     private array  $rawSelect = [];
 
+    private ?Grammar $grammar = null;
+
     public function __construct(private readonly Connection $connection) {}
+
+    /** Cached per-driver Grammar for identifier quoting. */
+    private function grammar(): Grammar
+    {
+        return $this->grammar ??= Grammar::forConnection($this->connection);
+    }
 
     public function table(string $table): static
     {
@@ -207,7 +217,9 @@ class QueryBuilder
 
     public function count(): int
     {
-        $sql    = "SELECT COUNT(*) AS `cnt` FROM `{$this->table}`" . $this->buildWhereSql();
+        $g      = $this->grammar();
+        $sql    = 'SELECT COUNT(*) AS ' . $g->quoteId('cnt')
+                . ' FROM ' . $g->quoteId($this->table) . $this->buildWhereSql();
         $result = $this->connection->query($sql, $this->whereBindings());
         return (int) ($result[0]['cnt'] ?? 0);
     }
@@ -226,10 +238,11 @@ class QueryBuilder
 
     public function insert(array $data): string|false
     {
-        $cols         = implode(', ', array_map(fn($c) => "`$c`", array_keys($data)));
+        $g            = $this->grammar();
+        $cols         = implode(', ', array_map($g->quoteId(...), array_keys($data)));
         $placeholders = implode(', ', array_fill(0, count($data), '?'));
         $this->connection->execute(
-            "INSERT INTO `{$this->table}` ($cols) VALUES ($placeholders)",
+            'INSERT INTO ' . $g->quoteId($this->table) . " ($cols) VALUES ($placeholders)",
             array_values($data)
         );
         return $this->connection->lastInsertId();
@@ -240,22 +253,24 @@ class QueryBuilder
         if (empty($rows)) {
             return;
         }
-        $cols           = implode(', ', array_map(fn($c) => "`$c`", array_keys($rows[0])));
-        $rowPlaceholder = '(' . implode(', ', array_fill(0, count($rows[0]), '?')) . ')';
+        $g               = $this->grammar();
+        $cols            = implode(', ', array_map($g->quoteId(...), array_keys($rows[0])));
+        $rowPlaceholder  = '(' . implode(', ', array_fill(0, count($rows[0]), '?')) . ')';
         $allPlaceholders = implode(', ', array_fill(0, count($rows), $rowPlaceholder));
-        $bindings       = array_merge(...array_map('array_values', $rows));
+        $bindings        = array_merge(...array_map('array_values', $rows));
         $this->connection->execute(
-            "INSERT INTO `{$this->table}` ($cols) VALUES $allPlaceholders",
+            'INSERT INTO ' . $g->quoteId($this->table) . " ($cols) VALUES $allPlaceholders",
             $bindings
         );
     }
 
     public function update(array $data): int
     {
-        $sets     = implode(', ', array_map(fn($c) => "`$c` = ?", array_keys($data)));
+        $g        = $this->grammar();
+        $sets     = implode(', ', array_map(fn($c) => $g->quoteId($c) . ' = ?', array_keys($data)));
         $bindings = array_merge(array_values($data), $this->whereBindings());
         return $this->connection->execute(
-            "UPDATE `{$this->table}` SET $sets" . $this->buildWhereSql(),
+            'UPDATE ' . $g->quoteId($this->table) . " SET $sets" . $this->buildWhereSql(),
             $bindings
         );
     }
@@ -263,7 +278,7 @@ class QueryBuilder
     public function delete(): int
     {
         return $this->connection->execute(
-            "DELETE FROM `{$this->table}`" . $this->buildWhereSql(),
+            'DELETE FROM ' . $this->grammar()->quoteId($this->table) . $this->buildWhereSql(),
             $this->whereBindings()
         );
     }
@@ -273,7 +288,7 @@ class QueryBuilder
     private function buildSelectSql(): string
     {
         $sql = 'SELECT ' . implode(', ', $this->columns);
-        $sql .= " FROM `{$this->table}`";
+        $sql .= ' FROM ' . $this->grammar()->quoteId($this->table);
 
         foreach ($this->joins as $join) {
             $sql .= " $join";

@@ -10,55 +10,81 @@ class Schema
 {
     public static function create(string $table, callable $callback): void
     {
+        $conn      = Connection::getDefault();
+        $grammar   = Grammar::forConnection($conn);
         $blueprint = new Blueprint();
         $callback($blueprint);
-        Connection::getDefault()->execute($blueprint->toCreateSql($table));
+
+        $conn->execute($blueprint->toCreateSql($table, $grammar));
+        foreach ($blueprint->extraStatements($table, $grammar) as $sql) {
+            $conn->execute($sql);
+        }
     }
 
     /**
-     * Добавляет колонки/индексы к существующей таблице.
+     * Add columns/indexes to an existing table.
      */
     public static function table(string $table, callable $callback): void
     {
+        $conn      = Connection::getDefault();
+        $grammar   = Grammar::forConnection($conn);
         $blueprint = new Blueprint();
         $callback($blueprint);
-        Connection::getDefault()->execute($blueprint->toAlterAddSql($table));
+
+        $conn->execute($blueprint->toAlterAddSql($table, $grammar));
+        foreach ($blueprint->extraStatements($table, $grammar) as $sql) {
+            $conn->execute($sql);
+        }
     }
 
     public static function drop(string $table): void
     {
-        Connection::getDefault()->execute("DROP TABLE `$table`");
+        $conn = Connection::getDefault();
+        $g    = Grammar::forConnection($conn);
+        $conn->execute('DROP TABLE ' . $g->quoteId($table));
     }
 
     public static function dropIfExists(string $table): void
     {
-        Connection::getDefault()->execute("DROP TABLE IF EXISTS `$table`");
+        $conn = Connection::getDefault();
+        $g    = Grammar::forConnection($conn);
+        $conn->execute('DROP TABLE IF EXISTS ' . $g->quoteId($table));
     }
 
     public static function rename(string $from, string $to): void
     {
-        Connection::getDefault()->execute("RENAME TABLE `$from` TO `$to`");
+        $conn   = Connection::getDefault();
+        $g      = Grammar::forConnection($conn);
+        $driver = $conn->getDriverName();
+
+        // MySQL: RENAME TABLE a TO b; PostgreSQL & SQLite: ALTER TABLE a RENAME TO b.
+        $sql = $driver === 'mysql'
+            ? 'RENAME TABLE ' . $g->quoteId($from) . ' TO ' . $g->quoteId($to)
+            : 'ALTER TABLE ' . $g->quoteId($from) . ' RENAME TO ' . $g->quoteId($to);
+
+        $conn->execute($sql);
     }
 
     public static function hasTable(string $table): bool
     {
-        $result = Connection::getDefault()->query('SHOW TABLES LIKE ?', [$table]);
-        return !empty($result);
+        $conn = Connection::getDefault();
+        $g    = Grammar::forConnection($conn);
+        return !empty($conn->query($g->hasTableSql(), [$table]));
     }
 
     public static function hasColumn(string $table, string $column): bool
     {
-        $result = Connection::getDefault()->query(
-            "SHOW COLUMNS FROM `$table` LIKE ?",
-            [$column]
-        );
-        return !empty($result);
+        $conn = Connection::getDefault();
+        $g    = Grammar::forConnection($conn);
+        return !empty($conn->query($g->hasColumnSql($table), [$column]));
     }
 
     public static function dropColumn(string $table, string|array $columns): void
     {
+        $conn  = Connection::getDefault();
+        $g     = Grammar::forConnection($conn);
         $cols  = (array) $columns;
-        $parts = implode(', ', array_map(fn($c) => "DROP COLUMN `$c`", $cols));
-        Connection::getDefault()->execute("ALTER TABLE `$table` $parts");
+        $parts = implode(', ', array_map(fn($c) => 'DROP COLUMN ' . $g->quoteId($c), $cols));
+        $conn->execute('ALTER TABLE ' . $g->quoteId($table) . ' ' . $parts);
     }
 }

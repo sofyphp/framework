@@ -4,6 +4,16 @@ declare(strict_types=1);
 
 namespace Sofy\Database\Schema;
 
+use Sofy\Database\Schema\Grammars\MySqlGrammar;
+
+/**
+ * Pure data holder for a column definition. SQL generation lives on
+ * Grammar (one per driver) — ColumnDefinition just collects the facts
+ * the migration author declared.
+ *
+ * Back-compat: toSql() with no Grammar still emits MySQL SQL, matching
+ * pre-0.2.0 behaviour for any caller that hasn't been updated yet.
+ */
 class ColumnDefinition
 {
     private bool   $nullable        = false;
@@ -13,6 +23,7 @@ class ColumnDefinition
     private bool   $isIndex         = false;
     private bool   $isAutoIncrement = false;
     private bool   $isUnsigned      = false;
+    private bool   $isPrimaryKey    = false;
     private ?string $after          = null;
     private ?string $comment        = null;
 
@@ -21,96 +32,40 @@ class ColumnDefinition
         public readonly string $type,
     ) {}
 
-    public function nullable(bool $value = true): static
-    {
-        $this->nullable = $value;
-        return $this;
-    }
+    // ── Builder API ───────────────────────────────────────────────────────────
 
-    public function default(mixed $value): static
-    {
-        $this->defaultValue = $value;
-        $this->hasDefault   = true;
-        return $this;
-    }
+    public function nullable(bool $value = true): static    { $this->nullable = $value;       return $this; }
+    public function default(mixed $value): static           { $this->defaultValue = $value; $this->hasDefault = true; return $this; }
+    public function unique(): static                        { $this->isUnique = true;         return $this; }
+    public function index(): static                         { $this->isIndex = true;          return $this; }
+    public function unsigned(): static                      { $this->isUnsigned = true;       return $this; }
+    public function autoIncrement(): static                 { $this->isAutoIncrement = true;  return $this; }
+    public function primary(): static                       { $this->isPrimaryKey = true;     return $this; }
+    public function after(string $column): static           { $this->after = $column;         return $this; }
+    public function comment(string $text): static           { $this->comment = $text;         return $this; }
 
-    public function unique(): static
-    {
-        $this->isUnique = true;
-        return $this;
-    }
+    // ── Getters (used by Grammar / Blueprint) ─────────────────────────────────
 
-    public function index(): static
-    {
-        $this->isIndex = true;
-        return $this;
-    }
-
-    public function unsigned(): static
-    {
-        $this->isUnsigned = true;
-        return $this;
-    }
-
-    public function autoIncrement(): static
-    {
-        $this->isAutoIncrement = true;
-        return $this;
-    }
-
-    public function after(string $column): static
-    {
-        $this->after = $column;
-        return $this;
-    }
-
-    public function comment(string $text): static
-    {
-        $this->comment = $text;
-        return $this;
-    }
+    public function isNullable(): bool       { return $this->nullable; }
+    public function isUnique(): bool         { return $this->isUnique; }
+    public function isIndex(): bool          { return $this->isIndex; }
+    public function isAutoIncrement(): bool  { return $this->isAutoIncrement; }
+    public function isUnsigned(): bool       { return $this->isUnsigned; }
+    public function isPrimaryKey(): bool     { return $this->isPrimaryKey || $this->isAutoIncrement; }
+    public function hasDefault(): bool       { return $this->hasDefault; }
+    public function getDefault(): mixed      { return $this->defaultValue; }
+    public function getAfter(): ?string      { return $this->after; }
+    public function getComment(): ?string    { return $this->comment; }
 
     public function shouldAddUniqueKey(): bool { return $this->isUnique; }
     public function shouldAddIndex(): bool     { return $this->isIndex && !$this->isUnique; }
 
     /**
-     * Возвращает SQL только для определения колонки (без KEY — они идут отдельно).
+     * Back-compat shim: emit MySQL column SQL directly. New code should call
+     * $grammar->columnSql($column) instead.
      */
-    public function toSql(): string
+    public function toSql(?Grammar $grammar = null): string
     {
-        $type = $this->type;
-        if ($this->isUnsigned && !str_contains($type, 'UNSIGNED')) {
-            $type .= ' UNSIGNED';
-        }
-
-        $sql = "`{$this->name}` {$type}";
-        $sql .= $this->nullable ? ' NULL' : ' NOT NULL';
-
-        if ($this->hasDefault) {
-            $sql .= ' DEFAULT ' . $this->formatDefault($this->defaultValue);
-        }
-
-        if ($this->isAutoIncrement) {
-            $sql .= ' AUTO_INCREMENT';
-        }
-
-        if ($this->comment !== null) {
-            $sql .= " COMMENT '" . addslashes($this->comment) . "'";
-        }
-
-        if ($this->after !== null) {
-            $sql .= " AFTER `{$this->after}`";
-        }
-
-        return $sql;
-    }
-
-    private function formatDefault(mixed $value): string
-    {
-        if ($value === null)  return 'NULL';
-        if ($value === true)  return '1';
-        if ($value === false) return '0';
-        if (is_int($value) || is_float($value)) return (string) $value;
-        return "'" . addslashes((string) $value) . "'";
+        return ($grammar ?? new MySqlGrammar())->columnSql($this);
     }
 }
