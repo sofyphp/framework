@@ -14,6 +14,32 @@ use Throwable;
 class Application
 {
     private static Application $instance;
+
+    /** Lazily-read framework version from composer.json. @see version() */
+    private static ?string $cachedVersion = null;
+
+    /**
+     * Sofy framework version — single source of truth is the `version` field
+     * in composer.json at the project root. Bumped together with the git tag
+     * for a release; `php sofy update` reads this to compare against the
+     * latest stable on Packagist.
+     *
+     * Returns 'dev' if composer.json is missing or has no version field.
+     */
+    public static function version(): string
+    {
+        if (self::$cachedVersion !== null) {
+            return self::$cachedVersion;
+        }
+        $path = dirname(__DIR__, 2) . '/composer.json';
+        if (is_file($path)) {
+            $data = json_decode((string) file_get_contents($path), true);
+            if (is_array($data) && isset($data['version']) && is_string($data['version'])) {
+                return self::$cachedVersion = $data['version'];
+            }
+        }
+        return self::$cachedVersion = 'dev';
+    }
     private Container $container;
     private ModuleLoader $moduleLoader;
     private string $basePath;
