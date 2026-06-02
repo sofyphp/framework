@@ -233,6 +233,25 @@ $mailer = $app->get(MailerInterface::class);
 
 ## Обработка ошибок
 
+При `APP_DEBUG=true` в `.env` любое необработанное исключение (в том числе
+fatal-ошибки и ошибки на этапе boot — например, отсутствующий PSR-4 для
+свежескопированного модуля) отрисовывается в **debug-странице**: класс
+исключения, сообщение, файл/строка, исходник вокруг точки падения, полный
+stack trace с разворачивающимися фреймами + Request-инспектор (GET / POST
+/ Headers / Server).
+
+Хендлер ставится в `Application::__construct` тремя слоями — закрывает
+весь жизненный цикл запроса, а не только `Application::handle()`:
+
+1. `set_error_handler` — превращает PHP notice/warning в `ErrorException`
+2. `set_exception_handler` — ловит throwable вне try/catch (включая
+   `loadModules()` и `boot()`)
+3. `register_shutdown_function` — добивает фатальные `E_ERROR` / `E_PARSE`,
+   которые userland не может поймать иначе
+
+При `APP_DEBUG=false` отдаётся либо `resources/views/errors/{status}.php`
+если файл есть, либо стандартный `Internal Server Error` без деталей.
+
 Создать `views/errors/{code}.php` (или `.sofy.php`):
 
 ```

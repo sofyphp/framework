@@ -46,7 +46,7 @@ class ExceptionHandler
         <header>
             <div class="h-inner">
                 <div class="h-left">
-                    <div class="h-brand">Lu<span>ne</span></div>
+                    <div class="h-brand">So<span>fy</span></div>
                     <div class="exc-class"><span class="ns">{$ns}</span>{$short}</div>
                     <div class="exc-msg">{$msg}</div>
                     <div class="exc-loc">{$relFile}<span class="colon">:</span><span class="lineno">{$line}</span></div>

@@ -64,6 +64,11 @@ class Application
         static::$instance = $this;
 
         $this->loadEnvironment();
+        // Wire global error handling BEFORE we touch modules/routes/DB. Without
+        // this, fatal errors during loadModules()/boot() (e.g. a missing PSR-4
+        // class in a freshly-dropped module) bubble up to PHP's default handler
+        // and the operator sees a blank Nginx 500 instead of the debug page.
+        $this->registerErrorHandlers();
         $this->registerCoreBindings();
     }
 
@@ -80,6 +85,84 @@ class Application
     private function registerCoreBindings(): void
     {
         $this->container->singleton(Router::class, fn() => new Router());
+    }
+
+    /**
+     * Install three layers of error capture so any uncaught throwable —
+     * during bootstrap, during routing, or as a PHP fatal — ends up rendered
+     * through renderException() and the operator sees the same debug page
+     * regardless of WHERE the failure happened.
+     *
+     *   1. set_error_handler        — PHP notices/warnings → ErrorException
+     *   2. set_exception_handler    — uncaught throwables outside handle()
+     *      (boot crashes, register() class-not-found, module wiring fails)
+     *   3. register_shutdown_function — E_ERROR / E_PARSE / E_CORE_ERROR that
+     *      no userland handler can normally intercept.
+     */
+    private function registerErrorHandlers(): void
+    {
+        set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+            // Respect @ suppression and the error_reporting mask.
+            if (!(error_reporting() & $severity)) {
+                return false;
+            }
+            throw new \ErrorException($message, 0, $severity, $file, $line);
+        });
+
+        set_exception_handler(function (\Throwable $e): void {
+            $this->emitErrorResponse($e);
+        });
+
+        register_shutdown_function(function (): void {
+            $err = error_get_last();
+            if ($err === null) return;
+            $fatal = [E_ERROR, E_PARSE, E_CORE_ERROR, E_CORE_WARNING, E_COMPILE_ERROR, E_COMPILE_WARNING];
+            if (!in_array($err['type'], $fatal, true)) return;
+
+            $e = new \ErrorException($err['message'], 0, $err['type'], $err['file'], $err['line']);
+            $this->emitErrorResponse($e);
+        });
+    }
+
+    /**
+     * Send an error response from a global handler context — i.e. when PHP
+     * has already left the Application::handle() try/catch and may have
+     * partially streamed output. Clears any open output buffers, falls back
+     * to a minimal plain-text page if renderException() itself fails so the
+     * browser at least sees a useful message instead of nothing.
+     */
+    private function emitErrorResponse(\Throwable $e): void
+    {
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+
+        try {
+            $this->renderException($e)->send();
+            return;
+        } catch (\Throwable $inner) {
+            if (!headers_sent()) {
+                header('HTTP/1.1 500 Internal Server Error');
+                header('Content-Type: text/plain; charset=utf-8');
+            }
+            $debug = $this->env('APP_DEBUG', 'false') === 'true';
+            if ($debug) {
+                echo "Sofy: uncaught {$this->shortClass($e)}: {$e->getMessage()}\n";
+                echo '  at ' . $e->getFile() . ':' . $e->getLine() . "\n\n";
+                echo "While handling this, the renderer itself failed:\n";
+                echo '  ' . $this->shortClass($inner) . ': ' . $inner->getMessage() . "\n";
+                echo '  at ' . $inner->getFile() . ':' . $inner->getLine() . "\n";
+            } else {
+                echo "Internal Server Error\n";
+            }
+        }
+    }
+
+    private function shortClass(\Throwable $e): string
+    {
+        $name  = get_class($e);
+        $parts = explode('\\', $name);
+        return (string) end($parts);
     }
 
     /**

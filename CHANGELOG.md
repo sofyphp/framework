@@ -5,6 +5,40 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.9 — 2026-06-02
+
+**Fix: APP_DEBUG=true now actually shows the debug page for boot-time errors.**
+
+The framework's try/catch lived only inside `Application::handle()`, so a
+fatal during `bootstrap/app.php` — like dropping a module folder without
+running `composer dump-autoload` so its widget classes don't autoload —
+escaped to PHP's default error handler. Operators saw a blank Nginx 500
+instead of the rich debug page, even with `APP_DEBUG=true`.
+
+Three-layer global capture installed in `Application::__construct`:
+
+- `set_error_handler`  — converts PHP notices/warnings to `ErrorException`
+  so they hit the same renderer.
+- `set_exception_handler` — catches any throwable that escapes the
+  per-request try/catch: bootstrap crashes, `Module::register()` failures,
+  any wiring done before `$app->run()`.
+- `register_shutdown_function` — handles fatal `E_ERROR`, `E_PARSE`,
+  `E_CORE_ERROR`, `E_COMPILE_ERROR` that userland normally can't intercept.
+
+Each path clears any partially-streamed output buffers, then routes
+through `renderException()` so debug-page vs. static 500-view vs. custom
+`$app->error(500, ...)` handler all behave identically regardless of
+where the error originated.
+
+A fallback emitter inside the global handler guards against the renderer
+itself crashing — last-ditch plain-text response with the original
+exception + the renderer-failure exception when `APP_DEBUG=true`,
+otherwise just `Internal Server Error`. The browser never sees nothing.
+
+Drive-by: the debug page's header brand said `Lu<span>ne</span>` —
+leftover from the framework's previous name. Fixed to `So<span>fy</span>`
+matching the rest of the rebrand (REPL banner v0.4.4).
+
 ## v0.4.8 — 2026-06-02
 
 **Module marketplace (MVP).**
