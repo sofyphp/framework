@@ -254,7 +254,7 @@ class ReplCommand extends Command
     {
         $php = PHP_VERSION;
         $this->writeln('');
-        $this->writeln(self::ANSI_CYAN . '  Lu' . self::ANSI_YELLOW . 'ne' . self::ANSI_CYAN . ' REPL' . self::ANSI_RESET
+        $this->writeln(self::ANSI_CYAN . '  So' . self::ANSI_YELLOW . 'fy' . self::ANSI_CYAN . ' REPL' . self::ANSI_RESET
             . self::ANSI_MUTED . "  (PHP $php — type 'help' for commands, Ctrl+D to exit)" . self::ANSI_RESET);
         $this->writeln('');
     }

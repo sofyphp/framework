@@ -14,6 +14,7 @@ use Sofy\Admin\Admin;
 use Sofy\Admin\Controllers\DashboardController;
 use Sofy\Admin\Controllers\DatabaseController;
 use Sofy\Admin\Controllers\SystemController;
+use Sofy\Admin\Controllers\UpdateController;
 use Sofy\Admin\Controllers\UsersController;
 use Sofy\Admin\Middleware\EnsureAdmin;
 use Sofy\Admin\Widgets;
@@ -29,6 +30,11 @@ $router->group(['prefix' => 'admin', 'middleware' => [EnsureAdmin::class]], func
     // ── System info ─────────────────────────────────────────────────────────
     $router->get('/system',         [SystemController::class, 'overview']);
     $router->get('/system/modules', [SystemController::class, 'modules']);
+
+    // ── Updates ─────────────────────────────────────────────────────────────
+    $router->get ('/system/update',                [UpdateController::class, 'index']);
+    $router->post('/system/update/run',            [UpdateController::class, 'run']);
+    $router->post('/system/update/refresh-notes', [UpdateController::class, 'refreshNotes']);
 
     // ── Database browser ────────────────────────────────────────────────────
     $router->get('/database',               [DatabaseController::class, 'index']);
@@ -51,6 +57,8 @@ Admin::menu()->add('database',       'Database',    '/admin/database')
     ->icon(Icons::DATABASE)->section('System')->order(30);
 Admin::menu()->add('database.sql',   'SQL Console', '/admin/database/sql')
     ->icon(Icons::TERMINAL)->section('System')->order(40);
+Admin::menu()->add('system.update',  'Updates',     '/admin/system/update')
+    ->icon(Icons::DOWNLOAD)->section('System')->order(50);
 
 // Stock dashboard widgets. Modules can replace any of these by calling
 // Admin::widget(MyWidget::class) — order is governed by the widget's $order
