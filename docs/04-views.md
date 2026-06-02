@@ -249,6 +249,18 @@ UI::alert('Пользователь сохранён', type: 'success', title: '
 // type: success | warning | danger | info
 ```
 
+Сообщение и заголовок принимают `string|Component`. Строка экранируется
+(`htmlspecialchars`) — безопасный дефолт для пользовательского ввода. Передай
+`UI::raw('<…>')`, если нужно встроить markup:
+
+```php
+UI::alert(
+    UI::raw('Запиши доступ в <code>src/</code> и outbound HTTPS.'),
+    type: 'warning',
+    title: 'Heads up',
+)
+```
+
 ### Тост
 
 ```php
@@ -280,6 +292,45 @@ UI::ul(['Пункт 1', 'Пункт 2'])
 UI::ol(['Шаг 1', 'Шаг 2'])
 UI::raw('<strong>Доверенный HTML</strong>')   // только для доверенных данных
 ```
+
+### Иконки
+
+`Sofy\View\Icons` — каталог из 107 Feather-style SVG-иконок: layout, действия,
+статусы, люди, документы, время, dev/сервер, чарты, медиа. Все 24-viewBox,
+`stroke="currentColor"` (наследуют цвет родителя), `stroke-width="2"`.
+
+```php
+use Sofy\View\Icons;
+use Sofy\View\UI;
+
+UI::icon('home')                                    // 16×16, текущий цвет
+UI::icon('alert-triangle', size: 20)                // больше
+UI::icon('check-circle',   color: 'var(--success)') // другой цвет
+UI::icon('zap', strokeWidth: 1.5)                   // тоньше штрих
+
+// Доступ к сырому SVG-литералу (например, для menu->icon()):
+Icons::SETTINGS               // const, начинается с <svg…>
+Icons::get('user-plus')       // принимает kebab/snake/UPPER
+Icons::has('settings')        // bool
+Icons::names()                // полный список kebab-case
+```
+
+Неизвестное имя `UI::icon('does-not-exist')` рендерит пустой
+`<span class="sofy-icon-missing" data-name="…">` — опечатка видна в DevTools,
+вёрстка не ломается.
+
+Каталог покрывает: `home`, `dashboard`, `menu`, `sidebar`, `layout`, `grid`,
+`list`, `arrow-(up|down|left|right)`, `chevron-…`, `external-link`, `plus`,
+`minus`, `x`, `check`, `edit`, `trash`, `copy`, `save`, `download`, `upload`,
+`search`, `filter`, `refresh`, `sliders`, `info`, `alert-(circle|triangle)`,
+`check-circle`, `eye`, `lock`, `key`, `shield`, `user(s)`, `user-plus`,
+`mail`, `phone`, `at-sign`, `file`, `folder(-open)`, `archive`, `book`,
+`bookmark`, `clipboard`, `image`, `tag`, `flag`, `clock`, `calendar`, `code`,
+`terminal`, `database`, `server`, `cpu`, `hard-drive`, `git-branch`,
+`git-commit`, `tool`, `settings`, `box`, `package`, `shopping-cart`,
+`shopping-bag`, `credit-card`, `dollar-sign`, `chart`, `pie-chart`,
+`trending-(up|down)`, `activity`, `zap`, `heart`, `star`, `bell`, `sun`,
+`moon`, `cloud`, `wifi`, `globe`, `camera`, `hash`, `play`, `pause` и др.
 
 ### Герой
 

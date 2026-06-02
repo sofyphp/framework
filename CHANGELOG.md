@@ -5,6 +5,50 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.6 — 2026-06-02
+
+**Fix: one-click update from `/admin/system/update` actually works.**
+
+The previous version's "Update now" button often failed silently or with
+a confusing tail of CLI noise because the controller leaned on a
+fragile `shell_exec('echo y | php sofy update …')` pipeline. Three
+classes of failures fixed:
+
+- **Wrong `php` binary.** `PHP_BINARY` under PHP-FPM is `php-fpm`, not
+  the CLI. `UpdateController` now resolves `php` via a `findBinary()`
+  helper that walks `/usr/local/bin`, `/usr/bin`, `/bin`,
+  `/opt/homebrew/bin`, `/opt/local/bin`, then the web user's `$PATH`,
+  and only falls back to `PHP_BINARY` when its basename actually looks
+  like a CLI (`php` / `php8.x`).
+- **`composer` missing on FPM `$PATH`.** Previously a silent half-
+  update — composer dump-autoload would just not run, leaving new
+  classes unloadable. Now composer is invoked from the controller with
+  the same `findBinary()` resolver; if it isn't found, the update still
+  succeeds and the user gets a clear warning telling them to run
+  `composer dump-autoload -o` from a shell.
+- **Fragile confirmation piping.** `UpdateCommand` now takes a
+  `--no-interaction` flag and the controller passes it; the browser
+  already showed a JS confirm so the CLI doesn't ask again. Also added
+  `--no-composer` so the controller can drive composer itself.
+
+Process model rewritten: `shell_exec` → `proc_open` with explicit
+`cwd = $basePath`, extended `$PATH` env, hard 300s timeout (kills with
+SIGKILL on overrun), non-blocking stdout+stderr capture.
+
+Pre-flight added: before launching the subprocess, the controller
+verifies `is_writable()` on `src/`, `bootstrap/`, `sofy`, `composer.json`.
+Any failure renders an "Update did not complete" danger page with the
+list of unwritable paths and the web user's name (via `posix_getpwuid`),
+so the fix is obvious. Same page is used for missing-binary and
+non-zero exit code outcomes.
+
+Docs: `README.md`, `docs/01-getting-started.md` and `docs/12-console.md`
+now cover the `sudo php sofy full-install` server provisioning wizard
+(6 steps: domain · PHP 8.3/8.4/8.5 · Caddy/Nginx/Apache · SSL via
+Caddy auto or Certbot · MySQL/PostgreSQL/SQLite · cron + Supervisor +
+migrations) and its `--no-interaction` mode, plus the
+`/admin/system/update` web flow and the `php sofy update` CLI options.
+
 ## v0.4.5 — 2026-06-02
 
 **Bug fix: `UI::alert()` rendered HTML tags as literal text.**

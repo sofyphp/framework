@@ -122,48 +122,271 @@ class UpdateController
 
     public function run(Request $request): Response
     {
-        $base  = $this->basePath();
-        $sofy  = $base . '/sofy';
-        $php   = PHP_BINARY ?: 'php';
-        $cmd   = escapeshellarg($php) . ' ' . escapeshellarg($sofy) . ' update --no-migrate 2>&1';
+        $base = $this->basePath();
 
-        // Pipe stdin = /dev/null and answer the interactive confirm with "yes"
-        // — the CLI prompt asks before applying, and we already confirmed in JS.
-        $cmd = 'echo y | ' . $cmd;
+        // ── Pre-flight: cheap checks that surface a clear error before we ──
+        // run `php sofy update`, where a permission denied or missing binary
+        // would otherwise show up as a confusing tail of CLI noise.
+        $problems = $this->preflightChecks($base);
+        if ($problems !== []) {
+            return $this->renderFailure($base, '0.00', "Pre-flight checks failed:\n  • " . implode("\n  • ", $problems), '');
+        }
 
-        $start  = microtime(true);
-        $output = (string) shell_exec($cmd);
-        $took   = number_format(microtime(true) - $start, 2);
+        $php = $this->findBinary('php');
+        if ($php === null) {
+            return $this->renderFailure(
+                $base,
+                '0.00',
+                "Couldn't locate a `php` CLI binary on the web user's PATH.\n"
+                . 'Run `php sofy update` from a shell instead, or symlink php into /usr/local/bin.',
+                '',
+            );
+        }
 
-        // After the update, Application::version() reads the freshly-written
-        // composer.json — refresh it to show the new version.
+        // Build the command. --no-interaction skips the apply-changes prompt
+        // (we already confirmed in the browser); --no-composer means we drive
+        // composer ourselves afterwards so a missing composer binary becomes
+        // a clear warning rather than a silent half-update.
+        $cmd = [$php, $base . '/sofy', 'update', '--no-migrate', '--no-interaction', '--no-composer'];
+
+        $start = microtime(true);
+        [$exit, $stdout] = $this->runProcess($cmd, $base, timeoutSeconds: 300);
+        $sofyOut = $stdout;
+
+        // ── composer dump-autoload step (optional, surfaced as warning) ─────
+        $composerOut = '';
+        $composerExit = 0;
+        $composer    = $this->findBinary('composer');
+        if ($composer !== null) {
+            [$composerExit, $composerOut] = $this->runProcess(
+                [$composer, 'dump-autoload', '--optimize', '--working-dir=' . $base],
+                $base,
+                timeoutSeconds: 120,
+            );
+        }
+
+        $took = number_format(microtime(true) - $start, 2);
+
         $newVer = ltrim($this->readComposerVersion(), 'v');
 
-        // Bust caches so the next /admin/system/update reflects reality.
         Cache::forget(self::CACHE_KEY_PACKAGIST);
         Cache::forget(self::CACHE_KEY_NOTES);
 
-        $resultPane = UI::card(
-            'Output (' . $took . 's)',
-            UI::raw(
-                '<pre class="sofy-update-log">'
-                . $this->ansiToHtml($output)
-                . '</pre>',
-            ),
-        );
+        $combined = $sofyOut
+            . ($composer !== null ? "\n\n--- composer dump-autoload ---\n" . $composerOut : '');
+
+        if ($exit !== 0) {
+            return $this->renderFailure(
+                $base,
+                $took,
+                "php sofy update exited with status {$exit}. The framework files may be in a half-updated state.",
+                $combined,
+            );
+        }
+
+        $missingComposer = $composer === null
+            ? UI::alert(
+                UI::raw(
+                    'No <code class="sofy-docs-code">composer</code> binary was found on the web user\'s PATH, so '
+                    . '<code class="sofy-docs-code">composer dump-autoload</code> was skipped. New classes added by '
+                    . 'this release will not autoload until you run '
+                    . '<code class="sofy-docs-code">composer dump-autoload -o</code> from a shell.',
+                ),
+                'warning',
+                'Composer not found',
+            )
+            : null;
 
         return Admin::page('Update — done')
             ->header('Update — done', UI::button('← Back', '/admin/system/update', 'ghost'))
             ->add(
                 UI::alert(
-                    "Now running v{$newVer}. Restart PHP-FPM / opcache reset may be needed for the changes to take effect.",
+                    UI::raw(
+                        "Now running <strong>v{$newVer}</strong>. Restart PHP-FPM / opcache reset may be needed "
+                        . 'for the changes to take effect.',
+                    ),
                     'success',
                     'Update completed',
                 ),
-                $resultPane,
+                $missingComposer,
+                UI::card(
+                    'Output (' . $took . 's, exit ' . $exit . ')',
+                    UI::raw('<pre class="sofy-update-log">' . $this->ansiToHtml($combined) . '</pre>'),
+                ),
                 UI::raw($this->styles()),
             )
             ->response();
+    }
+
+    /**
+     * Render the failure page — same chrome as success, but a danger banner
+     * up top and the raw CLI output below for debugging.
+     */
+    private function renderFailure(string $base, string $took, string $reason, string $output): Response
+    {
+        return Admin::page('Update — failed')
+            ->header('Update — failed', UI::button('← Back', '/admin/system/update', 'ghost'))
+            ->add(
+                UI::alert(
+                    UI::raw(
+                        htmlspecialchars($reason, ENT_QUOTES, 'UTF-8')
+                        . '<br><br>Working directory: <code class="sofy-docs-code">'
+                        . htmlspecialchars($base, ENT_QUOTES, 'UTF-8')
+                        . '</code>',
+                    ),
+                    'danger',
+                    'Update did not complete',
+                ),
+                $output !== ''
+                    ? UI::card(
+                        'Output (' . $took . 's)',
+                        UI::raw('<pre class="sofy-update-log">' . $this->ansiToHtml($output) . '</pre>'),
+                    )
+                    : UI::raw(''),
+                UI::raw($this->styles()),
+            )
+            ->response();
+    }
+
+    /**
+     * Verify the web user can actually overwrite the framework files. Returns
+     * a list of human-readable problems; empty array means we're good to go.
+     *
+     * @return list<string>
+     */
+    private function preflightChecks(string $base): array
+    {
+        $problems = [];
+        foreach (['src', 'bootstrap', 'sofy', 'composer.json'] as $rel) {
+            $path = $base . '/' . $rel;
+            if (!file_exists($path)) {
+                $problems[] = "missing: {$rel}";
+                continue;
+            }
+            if (!is_writable($path)) {
+                $problems[] = "not writable: {$rel} (web user: " . (function_exists('posix_getpwuid') && function_exists('posix_geteuid')
+                        ? (string) (posix_getpwuid(posix_geteuid())['name'] ?? 'unknown')
+                        : 'unknown')
+                    . ')';
+            }
+        }
+        return $problems;
+    }
+
+    /**
+     * Locate a CLI binary on the web user's PATH. Falls back to PHP_BINARY
+     * when looking up "php" because that's almost always set, even when PATH
+     * is sparse (FPM, cron). Returns null if nothing usable is found.
+     */
+    private function findBinary(string $name): ?string
+    {
+        // Try `command -v` against an extended PATH — common install spots
+        // for composer/php that nginx/fpm often miss.
+        $paths = [
+            '/usr/local/bin', '/usr/bin', '/bin', '/opt/homebrew/bin',
+            '/opt/local/bin', '/usr/local/sbin', '/usr/sbin',
+        ];
+        $envPath = getenv('PATH');
+        $search  = $envPath ? explode(PATH_SEPARATOR, $envPath) : [];
+        foreach (array_merge($paths, $search) as $dir) {
+            $candidate = rtrim($dir, '/') . '/' . $name;
+            if (is_file($candidate) && is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        if ($name === 'php' && defined('PHP_BINARY') && PHP_BINARY !== '' && is_executable(PHP_BINARY)) {
+            // FPM/CGI's PHP_BINARY may point at php-fpm — only accept names
+            // that look like a CLI binary (i.e. ends with "php" or "php8.x").
+            $basename = basename(PHP_BINARY);
+            if ($basename === 'php' || preg_match('/^php\d/', $basename)) {
+                return PHP_BINARY;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Run a subprocess with explicit cwd + extended PATH and capture its
+     * combined stdout/stderr. Beats shell_exec because we control the env
+     * (composer / php discovery from a shell-less FPM context) and can
+     * enforce a hard wall-clock timeout.
+     *
+     * @param  list<string> $argv
+     * @return array{0:int, 1:string}  [exit code, combined output]
+     */
+    private function runProcess(array $argv, string $cwd, int $timeoutSeconds = 300): array
+    {
+        $descriptorSpec = [
+            0 => ['pipe', 'r'],   // stdin
+            1 => ['pipe', 'w'],   // stdout
+            2 => ['pipe', 'w'],   // stderr (merged into stdout below via stream_select)
+        ];
+
+        $env = $this->envWithCommonPaths();
+
+        $proc = proc_open($argv, $descriptorSpec, $pipes, $cwd, $env);
+        if (!is_resource($proc)) {
+            return [127, 'Could not start process: ' . implode(' ', $argv)];
+        }
+
+        fclose($pipes[0]); // we don't write anything to stdin
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $output  = '';
+        $deadline = microtime(true) + $timeoutSeconds;
+
+        while (true) {
+            $status = proc_get_status($proc);
+            $output .= (string) stream_get_contents($pipes[1]);
+            $output .= (string) stream_get_contents($pipes[2]);
+
+            if (!$status['running']) {
+                break;
+            }
+
+            if (microtime(true) > $deadline) {
+                proc_terminate($proc, 9); // SIGKILL — no time for niceties
+                $output .= "\n[timeout: killed after {$timeoutSeconds}s]\n";
+                break;
+            }
+
+            usleep(100_000); // 100 ms — keeps CPU usage tiny while we wait
+        }
+
+        $output .= (string) stream_get_contents($pipes[1]);
+        $output .= (string) stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exit = proc_close($proc);
+        // proc_close returns -1 if the status had already been read by
+        // proc_get_status; fall back to the last known exit code in that case.
+        if ($exit === -1 && isset($status['exitcode'])) {
+            $exit = (int) $status['exitcode'];
+        }
+
+        return [$exit, $output];
+    }
+
+    /** @return array<string,string> */
+    private function envWithCommonPaths(): array
+    {
+        $extra = ['/usr/local/bin', '/usr/bin', '/bin', '/opt/homebrew/bin', '/opt/local/bin'];
+        $envPath = getenv('PATH') ?: '';
+        $path = implode(PATH_SEPARATOR, array_unique(array_merge($extra, explode(PATH_SEPARATOR, $envPath))));
+
+        return [
+            'PATH'     => $path,
+            'HOME'     => (string) (getenv('HOME') ?: sys_get_temp_dir()),
+            'TMPDIR'   => sys_get_temp_dir(),
+            'LANG'     => 'C.UTF-8',
+            'LC_ALL'   => 'C.UTF-8',
+            // composer needs to know where it lives; harmless on others.
+            'COMPOSER_HOME' => (string) (getenv('COMPOSER_HOME') ?: (getenv('HOME') ?: sys_get_temp_dir()) . '/.composer'),
+        ];
     }
 
     public function refreshNotes(): Response

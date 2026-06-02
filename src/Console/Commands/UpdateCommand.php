@@ -21,7 +21,7 @@ use Sofy\Core\Application;
  */
 class UpdateCommand extends Command
 {
-    protected string $signature   = 'update {--version= : Target version (e.g. 0.1.2). Defaults to latest stable} {--dry-run : Show what would change without applying} {--no-migrate : Skip running migrations after update} {--allow-downgrade : Allow installing an older version}';
+    protected string $signature   = 'update {--version= : Target version (e.g. 0.1.2). Defaults to latest stable} {--dry-run : Show what would change without applying} {--no-migrate : Skip running migrations after update} {--allow-downgrade : Allow installing an older version} {--no-interaction : Skip the apply-changes confirmation (web-trigger path)} {--no-composer : Skip the post-update composer dump-autoload step}';
     protected string $description = 'Update the framework code (src/, bootstrap/, sofy CLI) to the latest version on Packagist';
 
     private const string PACKAGIST_URL = 'https://repo.packagist.org/p2/sofyphp/framework.json';
@@ -150,7 +150,9 @@ class UpdateCommand extends Command
             return 0;
         }
 
-        if (!$this->confirm("Apply these changes to $basePath?", true)) {
+        // The /admin/system/update web trigger passes --no-interaction (and
+        // already showed its own JS confirm); skip the CLI prompt in that case.
+        if (!$this->option('no-interaction') && !$this->confirm("Apply these changes to $basePath?", true)) {
             $this->warn('Aborted.');
             $this->cleanup($tmpDir);
             return 0;
@@ -179,8 +181,12 @@ class UpdateCommand extends Command
         $this->cleanup($tmpDir);
 
         // ── Post-update ──
-        $this->info('Refreshing autoloader…');
-        $this->execLine('composer dump-autoload --optimize --working-dir=' . escapeshellarg($basePath));
+        if ($this->option('no-composer')) {
+            $this->comment('Skipping composer dump-autoload (--no-composer). Run `composer dump-autoload -o` manually.');
+        } else {
+            $this->info('Refreshing autoloader…');
+            $this->execLine('composer dump-autoload --optimize --working-dir=' . escapeshellarg($basePath));
+        }
 
         if (!$this->option('no-migrate')) {
             $this->info('Running migrations…');

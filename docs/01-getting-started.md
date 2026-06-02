@@ -2,13 +2,107 @@
 
 ## Установка
 
+Два сценария: локальная разработка и развёртывание на чистый сервер одной
+командой.
+
+### Локально (для разработки)
+
 ```bash
-git clone <repo> sofy
-cd sofy
+# Через Packagist
+composer create-project sofyphp/framework my-app
+
+# Либо вручную из git
+git clone https://github.com/sofyphp/framework my-app
+cd my-app
 composer install
+
 cp .env.example .env
 php sofy key:generate
+php sofy migrate
+php sofy admin:create                # интерактивно создаёт админа
+php -S localhost:8000 -t public
 ```
+
+Открой <http://localhost:8000> и зайди в `/admin`.
+
+### Продакшен — мастер `full-install`
+
+Sofy умеет провижить себя на свежий Linux-сервер одной командой. Подходит
+для Ubuntu/Debian-семейства.
+
+```bash
+sudo php sofy full-install                    # интерактивный мастер
+sudo php sofy full-install --no-interaction   # тихая установка с дефолтами
+```
+
+Мастер проводит через **6 шагов**, выводит сводку и просит подтверждения
+перед началом:
+
+| Шаг | Что спрашивает |
+|---|---|
+| 1 — Domain & Environment | домен или IP (`example.com` / `1.2.3.4`) |
+| 2 — PHP Version          | `8.3` / `8.4` / `8.5` (через Ondřej PPA, если нужно) |
+| 3 — Web Server           | **Caddy** (рекомендуется) / Nginx / Apache |
+| 4 — SSL Certificate      | для Caddy — авто Let's Encrypt; для Nginx/Apache — Certbot c email |
+| 5 — Database             | **MySQL** / PostgreSQL / SQLite + имя БД, юзер, пароль |
+| 6 — Additional           | cron `schedule:run`, Supervisor `queue:work`, `migrate` после |
+
+**Что устанавливается и настраивается:**
+
+- PHP выбранной версии + расширения (`pdo`, `curl`, `mbstring`, `openssl`,
+  `fileinfo`, `simplexml`, `xml`, `zip`, PDO-драйвер по выбранной БД)
+- Composer (если не было)
+- Веб-сервер с готовым vhost: document root → `public/`, PHP-FPM сокет,
+  rewrite-правила
+- Caddy: HTTPS работает сразу — авто-renew Let's Encrypt для реальных
+  доменов, self-signed для `localhost`/IP
+- Nginx/Apache: Certbot ставится и сразу запрашивает сертификат (если
+  домен — реальный публичный hostname)
+- БД: создаётся база и пользователь со сгенерированным паролем, креды
+  записываются в `.env` (`DB_DRIVER` / `DB_DATABASE` / `DB_USERNAME` /
+  `DB_PASSWORD`)
+- Права: `storage/` и `bootstrap/cache/` получают корректного владельца
+- Cron: строка `* * * * * php sofy schedule:run` в `/etc/cron.d/sofy`
+- Supervisor: программа, которая держит `php sofy queue:work` живым с
+  автоматическим рестартом
+- Финальный `php sofy migrate`
+
+**Дефолты `--no-interaction`:** `domain=localhost`, `php=8.5`,
+`webserver=caddy`, `ssl=true (auto)`, `db=mysql`, `db_name=sofy`,
+`db_user=sofy`, пароль автогенерируется и печатается в выводе,
+`cron+supervisor+migrate=true`.
+
+**Pre-flight:** команда работает только на Linux и требует прав root.
+На macOS/Windows скажет про это и выйдет.
+
+```bash
+sudo php sofy full-install
+# ...
+# ╔══════════════════════════════════════════╗
+# ║       Installation complete!             ║
+# ╚══════════════════════════════════════════╝
+#
+# Useful commands:
+#   php sofy migrate:status
+#   php sofy admin:create
+#   sudo systemctl status caddy php8.5-fpm
+#   tail -f storage/logs/app.log
+```
+
+После установки можешь создать админа (`php sofy admin:create`) и зайти
+в `/admin` — всё уже работает.
+
+### Обновление существующей установки
+
+```bash
+php sofy update                       # последний стабильный с Packagist
+php sofy update --version=0.5.0       # конкретная версия
+php sofy update --dry-run             # показать diff без применения
+```
+
+Те же шаги доступны из админки на `/admin/system/update` — кнопкой Update
+now. Подробности — в [docs/15-admin.md](15-admin.md).
+
 
 ## Структура проекта
 
