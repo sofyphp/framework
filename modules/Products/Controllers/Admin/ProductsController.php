@@ -53,19 +53,23 @@ class ProductsController
                 ['SKU', 'Название', 'Цена', 'Остаток', 'Статус', ''],
                 $rows,
                 [
-                    fn(Product $p) => UI::raw(
-                        '<a class="sofy-docs-a" href="/admin/products/' . (int) $p->id . '"><code class="sofy-docs-code">'
-                        . htmlspecialchars((string) $p->sku, ENT_QUOTES, 'UTF-8')
+                    // UI::dataTable normalises Model → array via toArray() before
+                    // calling these closures, so cells receive associative
+                    // arrays, not Product instances. Same pattern as the
+                    // built-in UsersController.
+                    fn(array $r) => UI::raw(
+                        '<a class="sofy-docs-a" href="/admin/products/' . (int) $r['id'] . '"><code class="sofy-docs-code">'
+                        . htmlspecialchars((string) ($r['sku'] ?? ''), ENT_QUOTES, 'UTF-8')
                         . '</code></a>',
                     ),
-                    fn(Product $p) => (string) $p->name,
-                    fn(Product $p) => number_format((float) $p->price, 2, '.', ' ') . ' ' . config('products.default_currency', 'USD'),
-                    fn(Product $p) => (string) (int) $p->stock,
-                    fn(Product $p) => $p->active
+                    fn(array $r) => (string) ($r['name'] ?? ''),
+                    fn(array $r) => number_format((float) ($r['price'] ?? 0), 2, '.', ' ') . ' ' . config('products.default_currency', 'USD'),
+                    fn(array $r) => (string) (int) ($r['stock'] ?? 0),
+                    fn(array $r) => ((bool) ($r['active'] ?? false))
                         ? UI::badge('Активен', 'success')
                         : UI::badge('Скрыт',  'default'),
-                    fn(Product $p) => UI::raw(
-                        '<a class="sofy-btn sofy-btn-ghost sofy-btn-sm" href="/admin/products/' . (int) $p->id . '/edit">'
+                    fn(array $r) => UI::raw(
+                        '<a class="sofy-btn sofy-btn-ghost sofy-btn-sm" href="/admin/products/' . (int) $r['id'] . '/edit">'
                         . UI::icon('edit', size: 12) . '</a>',
                     ),
                 ],

@@ -5,6 +5,30 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.12 — 2026-06-02
+
+**Hotfix: typed Model closures in OrdersController + ProductsController
+crashed `UI::dataTable` / `UI::table` rendering.**
+
+Both `UI::dataTable` and `UI::table` normalise rows to associative
+arrays via `toArray()` before invoking column closures — see
+`DataTable::normalizeRow()` / `Table::normalizeRow()`. The Orders and
+Products controllers shipped with closures typed `fn(Order $o)`,
+`fn(OrderItem $i)`, `fn(Product $p)` and dereferenced `$o->id`, which
+worked at lint time and at runtime ONLY when the table was empty
+(closures never invoked). The first real row produced:
+
+    TypeError: Argument #1 ($p) must be of type
+    Products\Models\Product, array given,
+    called in src/View/UI/DataTable.php:100
+
+Fixed by switching every typed-closure column to `fn(array $r)` with
+`$r['field']` lookups — same pattern the framework's own
+`UsersController` uses. Affects the listing page closures in both
+controllers and the OrderItem table inside the order detail page.
+
+No framework changes — pure module-side fix.
+
 ## v0.4.11 — 2026-06-02
 
 **Fix: uninstalled modules no longer surface as `Failed`. Plus a Products

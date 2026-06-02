@@ -80,22 +80,25 @@ class OrdersController
                 ['#', 'Клиент', 'Статус', 'Сумма', 'Создан', ''],
                 $orders,
                 [
-                    fn(Order $o) => UI::raw(
-                        '<a class="sofy-docs-a" href="/admin/orders/' . (int) $o->id . '">'
-                        . htmlspecialchars((string) $o->number, ENT_QUOTES, 'UTF-8') . '</a>',
+                    // UI::dataTable normalises Model → array via toArray()
+                    // before invoking these — receive assoc arrays, not Order
+                    // objects. Same convention as UsersController.
+                    fn(array $r) => UI::raw(
+                        '<a class="sofy-docs-a" href="/admin/orders/' . (int) ($r['id'] ?? 0) . '">'
+                        . htmlspecialchars((string) ($r['number'] ?? ''), ENT_QUOTES, 'UTF-8') . '</a>',
                     ),
-                    fn(Order $o) => UI::raw(
-                        '<div><strong>' . htmlspecialchars((string) $o->customer_name, ENT_QUOTES, 'UTF-8') . '</strong></div>'
-                        . '<div class="sofy-muted">' . htmlspecialchars((string) $o->customer_email, ENT_QUOTES, 'UTF-8') . '</div>',
+                    fn(array $r) => UI::raw(
+                        '<div><strong>' . htmlspecialchars((string) ($r['customer_name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</strong></div>'
+                        . '<div class="sofy-muted">' . htmlspecialchars((string) ($r['customer_email'] ?? ''), ENT_QUOTES, 'UTF-8') . '</div>',
                     ),
-                    fn(Order $o) => UI::badge(
-                        (string) ($statuses[$o->status] ?? $o->status),
-                        (string) ($variants[$o->status] ?? 'default'),
+                    fn(array $r) => UI::badge(
+                        (string) ($statuses[$r['status'] ?? ''] ?? ($r['status'] ?? '')),
+                        (string) ($variants[$r['status'] ?? ''] ?? 'default'),
                     ),
-                    fn(Order $o) => $this->formatMoney((float) $o->total, (string) $o->currency),
-                    fn(Order $o) => $this->formatDate($o->created_at ?? null),
-                    fn(Order $o) => UI::raw(
-                        '<a class="sofy-btn sofy-btn-ghost sofy-btn-sm" href="/admin/orders/' . (int) $o->id . '">Открыть</a>',
+                    fn(array $r) => $this->formatMoney((float) ($r['total'] ?? 0), (string) ($r['currency'] ?? 'USD')),
+                    fn(array $r) => $this->formatDate($r['created_at'] ?? null),
+                    fn(array $r) => UI::raw(
+                        '<a class="sofy-btn sofy-btn-ghost sofy-btn-sm" href="/admin/orders/' . (int) ($r['id'] ?? 0) . '">Открыть</a>',
                     ),
                 ],
                 perPage: $perPage,
@@ -172,15 +175,16 @@ class OrdersController
                     ['Название', 'Кол-во', 'Цена', 'Сумма', ''],
                     $items,
                     [
-                        fn(OrderItem $i) => (string) $i->name,
-                        fn(OrderItem $i) => (string) $i->quantity,
-                        fn(OrderItem $i) => $this->formatMoney((float) $i->unit_price, (string) $order->currency),
-                        fn(OrderItem $i) => $this->formatMoney((float) $i->total,      (string) $order->currency),
-                        fn(OrderItem $i) => UI::raw(
+                        // UI::table normalises rows to assoc arrays too.
+                        fn(array $r) => (string) ($r['name'] ?? ''),
+                        fn(array $r) => (string) ($r['quantity'] ?? 0),
+                        fn(array $r) => $this->formatMoney((float) ($r['unit_price'] ?? 0), (string) $order->currency),
+                        fn(array $r) => $this->formatMoney((float) ($r['total']      ?? 0), (string) $order->currency),
+                        fn(array $r) => UI::raw(
                             '<form method="POST" action="/admin/orders/' . (int) $order->id . '" style="display:inline">'
                             . ($csrf !== '' ? '<input type="hidden" name="_token" value="' . htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') . '">' : '')
                             . '<input type="hidden" name="_action" value="delete_item">'
-                            . '<input type="hidden" name="item_id" value="' . (int) $i->id . '">'
+                            . '<input type="hidden" name="item_id" value="' . (int) ($r['id'] ?? 0) . '">'
                             . '<button class="sofy-btn sofy-btn-ghost sofy-btn-sm" type="submit" onclick="return confirm(\'Удалить позицию?\');">'
                             . UI::icon('trash', size: 13) . '</button>'
                             . '</form>',
