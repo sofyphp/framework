@@ -1,0 +1,24 @@
+{
+  "slug": "orders",
+  "name": "Orders",
+  "namespace": "Orders\\",
+  "version": "1.0.0",
+  "description": "Заказы с позициями, статусами, бэйджем pending в сайдбаре и двумя виджетами на дашборде.",
+  "author": "sofyphp",
+  "homepage": "https://github.com/sofyphp/framework/tree/main/modules/Orders",
+  "license": "MIT",
+  "requires": {
+    "sofy": "^0.4",
+    "php":  "^8.3",
+    "ext":  ["pdo"]
+  },
+  "categories": ["commerce"],
+  "tags": ["orders", "checkout", "admin"],
+  "screenshots": [],
+  "dist": {
+    "type": "github-tag",
+    "repo": "sofyphp/framework",
+    "tag":  "v0.4.7",
+    "subdir": "modules/Orders"
+  }
+}

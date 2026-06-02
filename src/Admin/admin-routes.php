@@ -13,6 +13,7 @@ declare(strict_types=1);
 use Sofy\Admin\Admin;
 use Sofy\Admin\Controllers\DashboardController;
 use Sofy\Admin\Controllers\DatabaseController;
+use Sofy\Admin\Controllers\MarketplaceController;
 use Sofy\Admin\Controllers\SystemController;
 use Sofy\Admin\Controllers\UpdateController;
 use Sofy\Admin\Controllers\UsersController;
@@ -35,6 +36,12 @@ $router->group(['prefix' => 'admin', 'middleware' => [EnsureAdmin::class]], func
     $router->get ('/system/update',                [UpdateController::class, 'index']);
     $router->post('/system/update/run',            [UpdateController::class, 'run']);
     $router->post('/system/update/refresh-notes', [UpdateController::class, 'refreshNotes']);
+
+    // ── Marketplace ─────────────────────────────────────────────────────────
+    $router->get ('/system/marketplace',                     [MarketplaceController::class, 'index']);
+    $router->post('/system/marketplace/refresh',             [MarketplaceController::class, 'refresh']);
+    $router->post('/system/marketplace/{slug}/install',      [MarketplaceController::class, 'install']);
+    $router->post('/system/marketplace/{slug}/uninstall',    [MarketplaceController::class, 'uninstall']);
 
     // ── Database browser ────────────────────────────────────────────────────
     $router->get('/database',               [DatabaseController::class, 'index']);
@@ -59,6 +66,8 @@ Admin::menu()->add('database.sql',   'SQL Console', '/admin/database/sql')
     ->icon(Icons::TERMINAL)->section('System')->order(40);
 Admin::menu()->add('system.update',  'Updates',     '/admin/system/update')
     ->icon(Icons::DOWNLOAD)->section('System')->order(50);
+Admin::menu()->add('system.marketplace', 'Marketplace', '/admin/system/marketplace')
+    ->icon(Icons::SHOPPING_BAG)->section('System')->order(60);
 
 // Stock dashboard widgets. Modules can replace any of these by calling
 // Admin::widget(MyWidget::class) — order is governed by the widget's $order

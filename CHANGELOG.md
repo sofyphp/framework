@@ -5,6 +5,49 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.8 — 2026-06-02
+
+**Module marketplace (MVP).**
+
+`/admin/system/marketplace` — browse, install and uninstall Sofy modules
+from a central catalog without touching the shell.
+
+  • `sofy-module.json` spec — manifest each module ships at its repo
+    root (slug, name, namespace, version, requires, dist, screenshots,
+    categories). Spec doc at `docs/sofy-module-spec.md`. Reference
+    example at `modules/Orders/sofy-module.json`.
+  • `Sofy\Module\Marketplace\Catalog` — fetches the remote catalog from
+    `config('marketplace.catalog_url')` (default
+    https://raw.githubusercontent.com/sofyphp/marketplace/main/modules.json),
+    cached 1 h. Falls back to the bundled `docs/marketplace.json` when
+    remote is unreachable, and merges in manifests detected on disk
+    under `modules/` so installed modules always appear (annotated with
+    `installed=true`). Legacy modules without a manifest get a
+    synthesised stub so they still surface in the UI.
+  • `Sofy\Module\Marketplace\Installer` — download → extract → copy to
+    `modules/{Name}/` → patch `composer.json` psr-4 → composer
+    dump-autoload → optional migrate. Returns `InstallResult` so
+    controllers and CLI render the same outcome without try/catch.
+    Pre-flight on `modules/` + `composer.json` writability mirrors the
+    UpdateController discipline; resolves `php` / `composer` / `unzip`
+    via `findBinary()` so it works under PHP-FPM with sparse `$PATH`.
+    Dist types supported: `github-release` (latest release zip),
+    `github-tag` (specific tag), `zip` (direct URL).
+  • `MarketplaceController` — grid of cards with category chips +
+    search; install/uninstall confirms in JS; output rendered in a
+    dark `<pre>` with the operation log. Sidebar entry under System
+    with the `shopping-bag` icon.
+  • CLI symmetry:
+        php sofy marketplace:list
+        php sofy marketplace:list --installed --search=orders
+        php sofy marketplace:install <slug>
+        php sofy marketplace:install <slug> --no-migrate
+        php sofy marketplace:uninstall <slug>
+
+Bundled catalog ships with one entry (Orders v1.0.0 pointing at the
+framework's own modules/Orders subdirectory of tag v0.4.7) so the
+marketplace UI is non-empty even before sofyphp/marketplace exists.
+
 ## v0.4.7 — 2026-06-02
 
 **Bundled Orders module — full-feature reference module.**
