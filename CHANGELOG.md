@@ -5,6 +5,42 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.7 — 2026-06-02
+
+**Bundled Orders module — full-feature reference module.**
+
+Drop-in `modules/Orders/` showing how to ship a complete feature in
+isolation — everything the module needs (model, migrations, routes,
+controller, admin menu entry, dashboard widgets, scoped CSS) lives
+under its directory; nothing leaks into the host app.
+
+  • Models — `Orders\Models\Order` (number, customer name/email, status,
+    total, currency, notes) with a `hasMany` items relation and a
+    `generateNumber()` helper that yields ORD-000001-style sequential
+    ids. `Orders\Models\OrderItem` for line items.
+  • Migrations — two auto-discovered files under `Migrations/` create
+    the `orders` and `order_items` tables; driver-agnostic via the
+    Schema Grammar layer (MySQL / PostgreSQL / SQLite).
+  • Routes — `routes.php` registers eight endpoints under /admin/orders
+    behind EnsureAdmin: index (with status filter + search), create,
+    store, show (with inline line-item add/delete), edit, update,
+    status quick-change, destroy.
+  • Admin menu — `Orders.php::register()` adds a 'Заказы' entry in a
+    'Каталог' section with a live pending-orders badge counter, plus
+    two dashboard widgets:
+      - OrdersTodayWidget — count today vs yesterday
+      - OrdersRevenueWidget — sum of total across paid/shipped/completed
+  • Configuration — `config.php` ships statuses (pending → paid →
+    shipped → completed / cancelled), per-status alert variant mapping,
+    default currency, page size, and number prefix.
+  • Graceful degradation — all touchpoints (widgets, controller, menu
+    badge) catch DB exceptions so /admin keeps loading even before
+    `php sofy migrate` has been run.
+
+To install in a host app: drop `modules/Orders/` in place and add
+`"Orders\\\\": "modules/Orders/"` to composer.json's psr-4 (already done
+here). The module loader picks it up on the next boot.
+
 ## v0.4.6 — 2026-06-02
 
 **Fix: one-click update from `/admin/system/update` actually works.**
