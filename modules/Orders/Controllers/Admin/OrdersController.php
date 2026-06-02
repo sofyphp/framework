@@ -190,8 +190,9 @@ class OrdersController
             );
         }
 
-        // Add-item form.
-        $addItem = UI::card('Добавить позицию', UI::raw(
+        // Add-item form. Two forms side-by-side when the Products module is
+        // installed — free-form (existing) + from-catalog dropdown.
+        $freeForm =
             '<form method="POST" action="/admin/orders/' . (int) $order->id . '" class="sofy-orders-additem">'
             . ($csrf !== '' ? '<input type="hidden" name="_token" value="' . htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') . '">' : '')
             . '<input type="hidden" name="_action" value="add_item">'
@@ -199,7 +200,48 @@ class OrdersController
             . '<input class="sofy-form-ctrl" name="item_qty"   required type="number" min="1" step="1" value="1" style="max-width:90px">'
             . '<input class="sofy-form-ctrl" name="item_price" required type="number" min="0" step="0.01" placeholder="Цена" style="max-width:140px">'
             . '<button class="sofy-btn sofy-btn-primary" type="submit">+ Добавить</button>'
-            . '</form>',
+            . '</form>';
+
+        // Catalog form is conditional — Products module may not be installed
+        // and we don't want to hard-depend on it. Check class_exists guards
+        // against a stale autoloader; the try/catch around Product::query()
+        // covers a missing products table.
+        $catalogForm = '';
+        if (class_exists(\Products\Models\Product::class)) {
+            try {
+                $products = \Products\Models\Product::query()->where('active', true)->orderBy('name')->limit(500)->get();
+            } catch (\Throwable) {
+                $products = [];
+            }
+            if (!empty($products)) {
+                $opts = '';
+                foreach ($products as $p) {
+                    /** @var \Products\Models\Product $p */
+                    $opts .= '<option value="' . (int) $p->id . '" data-price="' . htmlspecialchars((string) $p->price, ENT_QUOTES, 'UTF-8') . '">'
+                        . htmlspecialchars((string) $p->sku, ENT_QUOTES, 'UTF-8') . ' — '
+                        . htmlspecialchars((string) $p->name, ENT_QUOTES, 'UTF-8') . ' · '
+                        . number_format((float) $p->price, 2, '.', ' ') . ' ' . (string) $order->currency
+                        . '</option>';
+                }
+                $catalogForm =
+                    '<form method="POST" action="/admin/orders/' . (int) $order->id . '" class="sofy-orders-additem">'
+                    . ($csrf !== '' ? '<input type="hidden" name="_token" value="' . htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') . '">' : '')
+                    . '<input type="hidden" name="_action" value="add_from_catalog">'
+                    . '<select class="sofy-form-ctrl" name="product_id" required style="flex:1">'
+                    . '<option value="">— выберите товар из каталога —</option>' . $opts
+                    . '</select>'
+                    . '<input class="sofy-form-ctrl" name="item_qty" required type="number" min="1" step="1" value="1" style="max-width:90px">'
+                    . '<button class="sofy-btn sofy-btn-primary" type="submit">+ Из каталога</button>'
+                    . '</form>';
+            }
+        }
+
+        $addItem = UI::card('Добавить позицию', UI::raw(
+            ($catalogForm !== ''
+                ? '<div class="sofy-orders-add-label">Из каталога:</div>' . $catalogForm
+                  . '<div class="sofy-orders-add-label">Свободная позиция:</div>'
+                : '')
+            . $freeForm,
         ));
 
         return Admin::page($headerTitle)
@@ -262,8 +304,9 @@ class OrdersController
 
         // The show() page also POSTs to this URL for inline item add/delete.
         $action = (string) $request->input('_action', '');
-        if ($action === 'add_item')    return $this->addItem($request, $order);
-        if ($action === 'delete_item') return $this->deleteItem($request, $order);
+        if ($action === 'add_item')         return $this->addItem($request, $order);
+        if ($action === 'add_from_catalog') return $this->addFromCatalog($request, $order);
+        if ($action === 'delete_item')      return $this->deleteItem($request, $order);
 
         $data = $this->collectOrderInput($request);
         if (is_string($data)) {
@@ -337,6 +380,45 @@ class OrdersController
 
         $order->recalcTotal();
 
+        return Response::redirect('/admin/orders/' . (int) $order->id);
+    }
+
+    /**
+     * Add a line item sourced from the Products catalogue. Soft-depends
+     * on the Products module — class_exists() guards against a stale
+     * install. The order item gets a snapshot of the product's current
+     * name + price + a link via product_id so historical totals stay
+     * stable even if the catalogue changes later.
+     */
+    private function addFromCatalog(Request $request, Order $order): Response
+    {
+        $productId = (int) $request->input('product_id', 0);
+        $qty       = max(1, (int) $request->input('item_qty', 1));
+
+        if ($productId <= 0 || !class_exists(\Products\Models\Product::class)) {
+            return Response::redirect('/admin/orders/' . (int) $order->id);
+        }
+
+        try {
+            $product = \Products\Models\Product::find($productId);
+        } catch (\Throwable) {
+            $product = null;
+        }
+        if ($product === null) {
+            return Response::redirect('/admin/orders/' . (int) $order->id);
+        }
+
+        $unitPrice = (float) $product->price;
+        OrderItem::create([
+            'order_id'   => (int) $order->id,
+            'product_id' => (int) $product->id,
+            'name'       => (string) $product->name,
+            'quantity'   => $qty,
+            'unit_price' => $unitPrice,
+            'total'      => round($qty * $unitPrice, 2),
+        ]);
+
+        $order->recalcTotal();
         return Response::redirect('/admin/orders/' . (int) $order->id);
     }
 
@@ -507,6 +589,8 @@ class OrdersController
             .sofy-btn-active{opacity:.55;cursor:default}
             .sofy-orders-additem{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
             .sofy-orders-additem .sofy-form-ctrl{flex:1;min-width:160px}
+            .sofy-orders-additem{margin:6px 0 12px}
+            .sofy-orders-add-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin:8px 0 4px}
             .sofy-orders-status-line{margin:0 0 12px}
             .sofy-muted{color:var(--muted);font-size:12px}
         </style>

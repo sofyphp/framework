@@ -1,0 +1,25 @@
+{
+  "slug": "products",
+  "name": "Products",
+  "namespace": "Products\\",
+  "version": "1.0.0",
+  "description": "Каталог товаров с SKU, ценой, остатками и активным флагом. Интегрируется с Orders — позиции заказа можно подтянуть из каталога.",
+  "author": "sofyphp",
+  "homepage": "https://github.com/sofyphp/framework/tree/main/modules/Products",
+  "license": "MIT",
+  "requires": {
+    "sofy": "^0.4.10",
+    "php":  "^8.3",
+    "ext":  ["pdo"]
+  },
+  "categories": ["commerce"],
+  "tags": ["products", "catalog", "admin"],
+  "screenshots": [],
+  "integrates_with": ["orders"],
+  "dist": {
+    "type": "github-tag",
+    "repo": "sofyphp/framework",
+    "tag":  "v0.4.11",
+    "subdir": "modules/Products"
+  }
+}

@@ -5,6 +5,76 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.11 — 2026-06-02
+
+**Fix: uninstalled modules no longer surface as `Failed`. Plus a Products
+module and Orders ↔ Products integration.**
+
+#### Loader: pre-flight catches PSR-4 misses BEFORE register() runs
+
+v0.4.10 introduced the enable-list, but the first-boot rule was too
+permissive — it auto-enabled every module folder on disk, regardless
+of whether the module's PSR-4 was registered in `composer.json`. A
+user upgrading from v0.4.6 with an already-copied `Orders/` folder
+ended up with Orders in the registry but no PSR-4 entry, so the next
+boot loaded `Orders\Orders` (via `require_once`), called its
+`register()`, which referenced `Orders\Admin\Widgets\OrdersTodayWidget`,
+which composer couldn't autoload — Failed. The user thought they
+hadn't installed Orders, the framework thought they had.
+
+Two changes:
+
+  • **First-boot auto-enable filters by composer.json psr-4.** Only
+    folders whose `Name\` namespace is mapped in
+    `autoload.psr-4` get auto-enabled. Folders without PSR-4 (i.e.
+    not properly installed) are left in the discoverable pile until
+    `php sofy module:install {Name}` patches autoload.
+
+  • **Pre-flight check on every enabled module.** Before requiring the
+    module file, the loader peeks at composer.json to verify the
+    namespace exists. If not, the module is moved to a new
+    `uninstalled` bucket — NOT `failed` — and `register()` is never
+    called. `/admin/system/modules` shows it in a dedicated
+    "Enabled but not properly installed" section with a copy-pasteable
+    install command.
+
+New ModuleLoader API: `uninstalled(): list<string>`.
+
+#### Products module
+
+`modules/Products/` — каталог товаров. Self-contained as Orders v0.4.7:
+
+  • `Models/Product` — sku, name, price, stock, description, active flag,
+    `Product::generateSku()` helper that yields `SKU-000001`-style ids
+  • `Migrations/2026_06_02_000003_create_products_table.php`
+  • `Controllers/Admin/ProductsController` — full CRUD + status filter
+    + search by SKU/name
+  • `Admin/Widgets/ProductsCountWidget` — active vs total tile
+  • `routes.php` — eight endpoints under `/admin/products` behind
+    EnsureAdmin
+  • `config.php` — currency, page size, SKU prefix
+  • `Orders.php::register()` adds menu entry under `Каталог` section
+    with a live "active products" badge
+
+#### Orders ↔ Products integration (soft dependency)
+
+  • New migration `2026_06_02_000004_add_product_id_to_order_items.php`
+    in `modules/Orders/Migrations/` adds a nullable `product_id` column
+    to `order_items`. Idempotent: re-running checks the column first.
+    No FK so deleting a Product doesn't cascade-delete history.
+
+  • `OrderItem::product()` resolves the linked Product — but only if
+    `class_exists(\Products\Models\Product::class)`. Orders has no
+    hard dependency on Products being installed; the catalogue
+    dropdown just disappears.
+
+  • `OrdersController::show()` renders TWO add-item forms when Products
+    is loaded: free-form (existing) + a "from catalog" select with
+    active products. New `_action=add_from_catalog` handler snapshots
+    name + price from the product and stores `product_id` on the item.
+
+Catalog: `docs/marketplace.json` gets a Products entry next to Orders.
+
 ## v0.4.10 — 2026-06-02
 
 **Modules now require explicit install — dropping a folder no longer

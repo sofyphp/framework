@@ -63,11 +63,12 @@ class SystemController
 
     public function modules(): Response
     {
-        $loader   = Application::getInstance()->getModuleLoader();
-        $base     = Application::getInstance()->basePath();
-        $modules  = $loader->modules();
-        $disabled = $loader->disabled();   // folders present but NOT in bootstrap/modules.php
-        $failed   = $loader->failed();     // tried to load/register but threw
+        $loader      = Application::getInstance()->getModuleLoader();
+        $base        = Application::getInstance()->basePath();
+        $modules     = $loader->modules();
+        $disabled    = $loader->disabled();    // folders present but NOT in bootstrap/modules.php
+        $uninstalled = $loader->uninstalled(); // enabled in registry but PSR-4 missing in composer.json
+        $failed      = $loader->failed();      // tried to load/register but threw
 
         // ── Enabled & loaded ────────────────────────────────────────────────
         if (empty($modules)) {
@@ -119,6 +120,28 @@ class SystemController
             );
         }
 
+        // ── Enabled but not properly installed (PSR-4 missing) ──────────────
+        // These were caught by ModuleLoader's pre-flight, so they NEVER ran
+        // their register() hook — distinct from $failed which means register
+        // actually threw at runtime. The recovery is the same: run
+        // module:install to patch composer.json psr-4 + dump-autoload.
+        $uninstalledCard = null;
+        if (!empty($uninstalled)) {
+            $uninstalledRows = array_map(static fn(string $n): array => [
+                'name' => $n,
+                'path' => "modules/{$n}/",
+                'fix'  => UI::raw('<code class="sofy-docs-code">php sofy module:install ' . htmlspecialchars($n, ENT_QUOTES, 'UTF-8') . '</code>'),
+            ], $uninstalled);
+            $uninstalledCard = UI::card(
+                'Enabled but not properly installed (' . count($uninstalled) . ')',
+                UI::table(
+                    ['Module', 'Path', 'Run to fix'],
+                    $uninstalledRows,
+                    ['name', 'path', 'fix'],
+                ),
+            );
+        }
+
         // ── Failed during load / register / routes / boot ───────────────────
         $failedCard = null;
         if (!empty($failed)) {
@@ -145,18 +168,28 @@ class SystemController
         }
 
         $components = array_filter([
+            $uninstalledCard !== null ? UI::alert(
+                UI::raw(
+                    '<strong>' . count($uninstalled) . '</strong> module(s) are enabled but their PSR-4 namespace is not in composer.json. '
+                    . 'They were copied in but never installed — the loader quarantined them before they could crash anything. '
+                    . 'Run the install command below to wire them up.',
+                ),
+                'warning',
+                'Modules not properly installed',
+            ) : null,
             $failedCard !== null ? UI::alert(
                 UI::raw('<strong>' . count($failed) . '</strong> module(s) failed during boot. Framework continues with the rest.'),
                 'danger',
                 'Some modules failed to load',
             ) : null,
             $loadedCard,
+            $uninstalledCard,
             $disabledCard,
             $failedCard,
         ]);
 
         return Admin::page('Modules')
-            ->header('Modules (' . count($modules) . ' loaded · ' . count($disabled) . ' disabled · ' . count($failed) . ' failed)')
+            ->header('Modules (' . count($modules) . ' loaded · ' . count($disabled) . ' disabled · ' . count($uninstalled) . ' uninstalled · ' . count($failed) . ' failed)')
             ->add(...$components)
             ->response();
     }

@@ -50,6 +50,9 @@ class ModuleLoader
     /** @var array<string, Throwable>  Module name → failure (load or register). */
     private array $failed = [];
 
+    /** @var list<string>  Modules enabled in registry but missing PSR-4 in composer.json. */
+    private array $uninstalled = [];
+
     /** Resolved base path of the project — set the first time discover() runs. */
     private ?string $basePath = null;
 
@@ -89,6 +92,17 @@ class ModuleLoader
         return $this->failed;
     }
 
+    /**
+     * @return list<string>  Modules that ARE in the enable-list but whose
+     * PSR-4 namespace is NOT in composer.json — they were never properly
+     * installed. The loader skips them before register() so they can't crash
+     * boot; the admin UI surfaces them with a copy-pasteable install command.
+     */
+    public function uninstalled(): array
+    {
+        return $this->uninstalled;
+    }
+
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
     /**
@@ -120,14 +134,22 @@ class ModuleLoader
 
         $registry = $this->loadRegistry();
 
-        // First-run bootstrap: no registry file yet → adopt everything currently
-        // on disk, write the registry, log the migration. From the next boot on
-        // this branch never re-enters and operators must call module:install
-        // to enable newly-dropped folders.
+        // First-run bootstrap: no registry file yet → adopt the modules that
+        // are ALREADY in composer.json's psr-4 map (i.e. properly installed
+        // before the upgrade). Modules whose folder is present but namespace
+        // isn't registered get left in the "discovered but not enabled"
+        // pile — auto-enabling them would just crash boot on the very next
+        // request (their internal classes can't autoload).
         if ($registry === null) {
-            $registry = ['enabled' => array_keys($candidates)];
+            $autoEnable = array_values(array_filter(
+                array_keys($candidates),
+                fn(string $name): bool => $this->isNamespaceRegistered($name),
+            ));
+            $registry = ['enabled' => $autoEnable];
             $this->saveRegistry($registry);
-            error_log('[sofy] First boot: auto-enabled ' . count($candidates) . ' modules → ' . $this->registryPath());
+            $skipped = count($candidates) - count($autoEnable);
+            error_log('[sofy] First boot: auto-enabled ' . count($autoEnable) . ' modules → ' . $this->registryPath()
+                . ($skipped > 0 ? " (skipped {$skipped} folder(s) lacking composer.json psr-4)" : ''));
         }
 
         $enabled = array_flip($registry['enabled'] ?? []);
@@ -135,6 +157,16 @@ class ModuleLoader
         foreach ($candidates as $name => $dir) {
             if (!isset($enabled[$name])) {
                 continue; // discoverable but not installed — skip silently
+            }
+            // Pre-flight: if composer doesn't know the module's namespace,
+            // it can't autoload widget/controller/model classes referenced
+            // inside register(). Quarantine the module BEFORE invoking it so
+            // a half-installed module never produces a 'Class X not found'
+            // failure — show it on /admin/system/modules with a clear hint.
+            if (!$this->isNamespaceRegistered($name)) {
+                $this->uninstalled[] = $name;
+                error_log("[sofy] Module {$name}: enabled in registry but PSR-4 not registered in composer.json. Run `php sofy module:install {$name}`.");
+                continue;
             }
             $this->tryLoadModule($name, $dir);
         }
@@ -293,6 +325,25 @@ class ModuleLoader
     }
 
     // ── Internals ────────────────────────────────────────────────────────────
+
+    /**
+     * Cheap composer.json lookup: is the module's top-level namespace already
+     * mapped to a folder in psr-4? Doesn't validate that the folder is the
+     * RIGHT one — just that an entry exists. Used as a pre-flight gate to
+     * avoid invoking register() on a module whose internal classes can't
+     * autoload.
+     */
+    private function isNamespaceRegistered(string $moduleName): bool
+    {
+        $composerPath = ($this->basePath ?? (string) (function_exists('base_path') ? base_path() : getcwd())) . '/composer.json';
+        if (!is_file($composerPath)) {
+            return true; // no composer.json — assume OK and let the loader try
+        }
+        $data = json_decode((string) file_get_contents($composerPath), true);
+        if (!is_array($data)) return true;
+        $psr4 = $data['autoload']['psr-4'] ?? [];
+        return is_array($psr4) && isset($psr4[$moduleName . '\\']);
+    }
 
     private function tryLoadModule(string $name, string $dir): void
     {
