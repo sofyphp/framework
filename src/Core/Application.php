@@ -198,6 +198,7 @@ class Application
     public function boot(): static
     {
         $this->bootDatabase();
+        $this->bootHttpMiddleware();
         $this->loadRoutes();
         $this->moduleLoader->loadRoutes($this->router());
         $this->moduleLoader->bootAll($this);
@@ -224,6 +225,32 @@ class Application
         } catch (Throwable) {
             // DB not available — skip silently
         }
+    }
+
+    /**
+     * Install the framework's default global HTTP middleware stack.
+     * Runs once during boot, before any routes load — ensures
+     * SecurityHeaders / CsrfMiddleware / CorsMiddleware see every
+     * request including the admin chrome and module routes.
+     *
+     * Override per-app: call `app(Router::class)->globalMiddleware([...])`
+     * in bootstrap/app.php to append more, or replace the wiring entirely
+     * by setting `Application::$autoSecurityMiddleware = false;` before
+     * `$app->boot()`.
+     */
+    public static bool $autoSecurityMiddleware = true;
+
+    private function bootHttpMiddleware(): void
+    {
+        if (!static::$autoSecurityMiddleware) {
+            return;
+        }
+        $router = $this->container->make(Router::class);
+        $router->globalMiddleware([
+            \Sofy\Http\Middleware\SecurityHeaders::class,
+            \Sofy\Http\Middleware\CorsMiddleware::class,
+            \Sofy\Http\Middleware\CsrfMiddleware::class,
+        ]);
     }
 
     private function loadRoutes(): void

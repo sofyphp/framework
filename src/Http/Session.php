@@ -16,9 +16,42 @@ class Session
         }
 
         $this->configureDriver();
+        $this->configureCookieParams();
 
         session_start();
         $this->started = true;
+    }
+
+    /**
+     * Force HttpOnly / SameSite=Lax / Secure-when-https on the session
+     * cookie so a fresh install doesn't inherit whatever the host's
+     * php.ini happened to ship with. Must be called before session_start().
+     *
+     * - HttpOnly      blocks document.cookie XSS theft
+     * - SameSite=Lax  blocks classic CSRF cookie attachment from a third
+     *                 party without breaking top-level navigation
+     * - Secure        only set on HTTPS — sending it on plain HTTP would
+     *                 make the cookie undeliverable
+     */
+    private function configureCookieParams(): void
+    {
+        $ttl    = function_exists('config') ? (int) config('session.lifetime', 120) * 60 : 7200;
+        $cookie = function_exists('config') ? (string) config('session.cookie', 'sofy_session') : 'sofy_session';
+
+        session_name($cookie);
+
+        $isHttps = (($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+            || ((string) ($_SERVER['SERVER_PORT'] ?? '')) === '443'
+            || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+
+        session_set_cookie_params([
+            'lifetime' => $ttl,
+            'path'     => '/',
+            'domain'   => '',
+            'secure'   => $isHttps,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
     }
 
     /**

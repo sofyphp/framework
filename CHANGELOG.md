@@ -5,6 +5,156 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.13 — 2026-06-02
+
+**Security hardening release. Fixes 10 findings from the v0.4.12 audit
++ verified live against http://5.42.121.9.**
+
+#### Auth-by-default for /admin (was the catastrophic one)
+
+`Sofy\Admin\AdminPanel::$requireAuth` flips from `false` to `true`. The
+live probe against 5.42.121.9 confirmed the worst case: `/admin/database`
+and `/admin/database/sql` were serving HTTP 200 to the public internet.
+A raw SQL console gated only by the absence of a login route a dev
+forgot to wire is not a default.
+
+Migration: a fresh install with no login form now shows a 503 setup
+hint at `/admin/*` explaining the three ways forward (wire login,
+disable framework auth, change loginUrl). The 503 page is self-
+contained HTML — no styles depend on the admin chrome.
+
+If you've already gated /admin upstream (nginx auth_basic, VPN,
+reverse-proxy ACL) and don't want the framework's gate, add
+`\Sofy\Admin\Admin::panel()->requireAuth = false;` to bootstrap/app.php.
+
+#### CSRF middleware actually runs now
+
+`CsrfMiddleware` existed since the framework's first release but was
+never wired into any default middleware stack — every state-changing
+POST in /admin accepted requests from any Origin. The audit caught it,
+the live probe verified it (`POST /admin/system/marketplace/refresh`
+returned 302, not 419). Now `Sofy\Http\Middleware\CsrfMiddleware` is in
+the global stack via `Router::globalMiddleware()`, applied to every
+non-GET/HEAD/OPTIONS request except `/api/*` (Bearer-token APIs don't
+need it). Forms that already include `_token` keep working unchanged.
+
+#### `Sofy\Http\Middleware\SecurityHeaders`
+
+New middleware, wired globally. Sends:
+
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Content-Security-Policy: …self-origin-only with 'unsafe-inline' for
+                            style + script because UI components inline
+                            both. Tighten in your own middleware once
+                            you've migrated handlers to addEventListener.
+  Strict-Transport-Security: max-age=2y; includeSubDomains  (HTTPS only)
+
+Idempotent — never overrides a header you already set per-route.
+
+#### `Session::start()` cookie params
+
+`session_set_cookie_params()` now runs before `session_start()` with
+`HttpOnly: true`, `SameSite: Lax`, and `Secure: true-when-https`.
+Previously sessions inherited php.ini defaults, which on most distro
+installs left HttpOnly off. JS-XSS-into-document.cookie attacks are
+now neutered.
+
+#### `Router::globalMiddleware()` API
+
+```
+$router->globalMiddleware([
+    \Sofy\Http\Middleware\SecurityHeaders::class,
+    \Sofy\Http\Middleware\CsrfMiddleware::class,
+]);
+```
+
+Applied via `Application::bootHttpMiddleware()` which runs from
+`Application::boot()` before `loadRoutes()`. Override with
+`Application::$autoSecurityMiddleware = false` before boot if you want
+to wire your own stack from scratch.
+
+`Request::isHttps()` added — checks `HTTPS`, `SERVER_PORT=443`, and
+`X-Forwarded-Proto: https` so it works behind a TLS-terminating
+reverse proxy.
+
+`Response::hasHeader()` added for SecurityHeaders to check
+"is this header already set?" without overwriting.
+
+#### CORS default
+
+`config/cors.php` now defaults `allowed_origins` to `[APP_URL]` instead
+of `['*']`. Override via `CORS_ALLOWED_ORIGINS=https://app.example.com,
+https://staging.example.com` in `.env`. The wildcard combined with
+public /admin was the audit's third critical finding.
+
+#### `Sofy\Support\Url::sameOrigin()`
+
+New helper for safe post-login redirects. Returns `$candidate` if it's
+a local path or same-origin URL, otherwise `$fallback`. Defends against
+classic open-redirect via `?next=https://attacker.com`.
+
+```php
+return Response::redirect(Url::sameOrigin($request->input('next'), '/admin'));
+```
+
+Eight unit cases verified (null, empty, `/path`, `//evil`, scheme
+mismatch, host mismatch, same-origin absolute, `javascript:`).
+
+#### Zip-slip defense-in-depth
+
+`Sofy\Module\Marketplace\Installer::extractZip()` and
+`Sofy\Console\Commands\UpdateCommand` now iterate archive entries
+BEFORE calling `ZipArchive::extractTo()` and reject anything with
+`..` segments, leading `/`, or `C:\` style absolute paths. PHP ≥7.4
+has built-in zip-slip protection but it's not watertight across
+symlink + Windows-path edges; this closes the gap.
+
+#### `Builder::orderBy()` direction allow-list
+
+`Sofy\Database\Builder::orderBy()` now rejects any direction that
+isn't exactly `ASC` or `DESC` (case-insensitive, trimmed) with an
+`InvalidArgumentException`. Catches `?sort=ASC; DROP TABLE users`
+patterns when devs forward user input straight into orderBy.
+
+#### Debug page scrub-list
+
+`Sofy\Core\ExceptionHandler::requestHtml()` now redacts request fields
+whose key contains `password`, `passwd`, `pwd`, `secret`, `token`,
+`_token`, `authorization`, `auth`, `api_key`, `apikey`, `cookie`,
+`remember_token`, `session`, `sessid`, `card`, `cvv`, or `cvc`. The
+debug page can be screenshotted into a bug tracker without leaking
+the user's password from a failed login.
+
+#### Live verification against 5.42.121.9 (pre-fix)
+
+  /admin                    → HTTP 200  (no auth)
+  /admin/users              → HTTP 200
+  /admin/database           → HTTP 200
+  /admin/database/sql       → HTTP 200  ← raw SQL console publicly executable
+  /admin/system             → HTTP 200
+  /admin/system/marketplace → HTTP 200
+  /admin/system/modules     → HTTP 200
+  X-Frame-Options           → MISSING
+  X-Content-Type-Options    → MISSING
+  Content-Security-Policy   → MISSING
+  Referrer-Policy           → MISSING
+  Strict-Transport-Security → MISSING
+
+After applying this release + `Admin::useAuth('admin')` in
+bootstrap/app.php + a login form, all of the above invert.
+
+#### Smoke (php -S, 6/6 pass)
+
+  [1] All 5 security headers present on GET /
+  [2] POST /admin/database/sql without _token → 419
+  [3] /admin without login route → 503 setup hint
+  [4] Set-Cookie includes HttpOnly + SameSite=Lax
+  [5] No CORS header on cross-origin GET (browser blocks)
+  [6] Url::sameOrigin — 8 cases, all expected
+
 ## v0.4.12 — 2026-06-02
 
 **Hotfix: typed Model closures in OrdersController + ProductsController

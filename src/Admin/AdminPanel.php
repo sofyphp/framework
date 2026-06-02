@@ -28,8 +28,25 @@ class AdminPanel
     public string $loginUrl  = '/admin/login';
     public string $logoutUrl = '/admin/logout';
 
-    /** When true, EnsureAdmin redirects to $loginUrl unless auth()->check(). */
-    public bool $requireAuth = false;
+    /**
+     * Whether EnsureAdmin requires an authenticated user before serving
+     * any /admin route.
+     *
+     * Default ON since v0.4.13. Previously this was OFF — combined with the
+     * SQL console at /admin/database/sql, that meant a fresh install shipped
+     * with an internet-accessible root-level DB shell. The security audit
+     * (v0.4.12) verified this on a live deployment.
+     *
+     * If you've already wired your own gate (e.g. nginx auth_basic, a
+     * reverse-proxy ACL, or you're running purely on a closed network), set
+     * this back to `false` explicitly in bootstrap/app.php:
+     *
+     *   \Sofy\Admin\Admin::panel()->requireAuth = false;
+     *
+     * Otherwise: register a POST /admin/login handler and create an admin
+     * user with `php sofy admin:create`.
+     */
+    public bool $requireAuth = true;
 
     /** Role checked when $requireAuth is true and the user model uses HasRoles. */
     public string $requiredRole = 'admin';

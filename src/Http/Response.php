@@ -46,6 +46,18 @@ class Response
         return $clone;
     }
 
+    /** Case-insensitive header presence check — used by SecurityHeaders middleware. */
+    public function hasHeader(string $name): bool
+    {
+        $needle = strtolower($name);
+        foreach (array_keys($this->headers) as $existing) {
+            if (strtolower((string) $existing) === $needle) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function withStatus(int $status): static
     {
         $clone          = clone $this;

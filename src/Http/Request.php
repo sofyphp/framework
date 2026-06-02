@@ -145,6 +145,24 @@ class Request
         return $this->method() === strtoupper($method);
     }
 
+    /**
+     * Whether the request came in over HTTPS. Checks the standard server
+     * vars plus the reverse-proxy `X-Forwarded-Proto` so it works behind
+     * nginx/Caddy doing TLS termination.
+     */
+    public function isHttps(): bool
+    {
+        $https = (string) ($this->server['HTTPS'] ?? '');
+        if ($https !== '' && strtolower($https) !== 'off') {
+            return true;
+        }
+        if (((string) ($this->server['SERVER_PORT'] ?? '')) === '443') {
+            return true;
+        }
+        $forwarded = strtolower((string) ($this->server['HTTP_X_FORWARDED_PROTO'] ?? ''));
+        return $forwarded === 'https';
+    }
+
     public function ip(): string
     {
         return $this->server['HTTP_X_FORWARDED_FOR']

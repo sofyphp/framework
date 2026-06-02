@@ -309,6 +309,19 @@ class Installer
         if (extension_loaded('zip')) {
             $zip = new \ZipArchive();
             if ($zip->open($zipFile) !== true) return false;
+
+            // Zip-slip defense-in-depth: iterate entries, reject anything
+            // with traversal or absolute paths BEFORE extractTo() touches
+            // disk. PHP ≥7.4's extractTo normalises some of these, but
+            // edge cases with symlinks and Windows paths remain.
+            for ($i = 0, $n = $zip->numFiles; $i < $n; $i++) {
+                $name = (string) $zip->getNameIndex($i);
+                if ($this->isUnsafeArchivePath($name)) {
+                    $zip->close();
+                    return false;
+                }
+            }
+
             $zip->extractTo($dest);
             $zip->close();
             return true;
@@ -490,5 +503,22 @@ class Installer
     private function basePath(): string
     {
         return function_exists('base_path') ? base_path() : (string) (getcwd() ?: '.');
+    }
+
+    /**
+     * Tightens defense around ZipArchive::extractTo against zip-slip:
+     * archive entries that escape the extraction root via '../', leading
+     * '/', or Windows-style 'C:\…' paths.
+     */
+    private function isUnsafeArchivePath(string $name): bool
+    {
+        $norm = str_replace('\\', '/', $name);
+        if ($norm === '' || $norm === '.' || $norm === '..') return true;
+        if (str_starts_with($norm, '/')) return true;
+        if (preg_match('#^[A-Za-z]:/#', $norm) === 1) return true;
+        foreach (explode('/', $norm) as $segment) {
+            if ($segment === '..') return true;
+        }
+        return false;
     }
 }

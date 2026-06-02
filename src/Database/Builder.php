@@ -70,6 +70,17 @@ class Builder
 
     public function orderBy(string $column, string $direction = 'ASC'): static
     {
+        // SQL-inject guard: direction is interpolated into the query string
+        // by QueryBuilder, so anything outside the allow-list is rejected.
+        // Catches the classic ?sort=ASC%3B%20DROP%20TABLE%20users pattern
+        // when devs forward user input straight into orderBy() — defenders
+        // shouldn't need to remember to sanitise this themselves.
+        $direction = strtoupper(trim($direction));
+        if (!in_array($direction, ['ASC', 'DESC'], true)) {
+            throw new \InvalidArgumentException(
+                "Builder::orderBy() direction must be 'ASC' or 'DESC', got '{$direction}'.",
+            );
+        }
         $this->qb->orderBy($column, $direction);
         return $this;
     }

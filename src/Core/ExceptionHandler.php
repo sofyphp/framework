@@ -149,6 +149,20 @@ class ExceptionHandler
 
     // ── Request info ──────────────────────────────────────────────────────────
 
+    /**
+     * Keys whose values must never appear on the debug page. Matches are
+     * case-insensitive and substring-based — `password_confirmation` is
+     * covered by `password`, `X-CSRF-Token` by `token`, etc.
+     */
+    private const array SENSITIVE_KEYS = [
+        'password', 'passwd', 'pwd',
+        'secret', 'token', '_token',
+        'authorization', 'auth', 'api_key', 'apikey',
+        'cookie',
+        'remember_token', 'session', 'sessid',
+        'card', 'cvv', 'cvc',
+    ];
+
     private function requestHtml(): string
     {
         $method = htmlspecialchars($_SERVER['REQUEST_METHOD'] ?? 'CLI', ENT_QUOTES);
@@ -158,9 +172,9 @@ class ExceptionHandler
               . "<span class=\"uri\">{$uri}</span></div>";
 
         $groups = [
-            'GET'     => $_GET,
-            'POST'    => $_POST,
-            'Headers' => $this->headers(),
+            'GET'     => $this->scrub($_GET),
+            'POST'    => $this->scrub($_POST),
+            'Headers' => $this->scrub($this->headers()),
             'Server'  => array_intersect_key($_SERVER, array_flip([
                 'SERVER_NAME', 'SERVER_PORT', 'REMOTE_ADDR',
                 'HTTP_HOST', 'HTTPS', 'DOCUMENT_ROOT', 'PHP_SELF',
@@ -185,6 +199,29 @@ class ExceptionHandler
         }
 
         return $html;
+    }
+
+    /**
+     * Replace sensitive values with `[redacted]` so the debug page never
+     * leaks passwords, API tokens, session cookies or CSRF tokens — even
+     * when an exception happens mid-login and the operator screenshots
+     * the page into a bug tracker.
+     *
+     * @param  array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function scrub(array $data): array
+    {
+        $out = [];
+        foreach ($data as $k => $v) {
+            $needle = strtolower((string) $k);
+            $hit = false;
+            foreach (self::SENSITIVE_KEYS as $marker) {
+                if (str_contains($needle, $marker)) { $hit = true; break; }
+            }
+            $out[$k] = $hit ? '[redacted]' : $v;
+        }
+        return $out;
     }
 
     private function headers(): array

@@ -23,6 +23,16 @@ class Router
     private array $groupStack  = [];
     private array $namedRoutes = [];
 
+    /**
+     * Middleware classes that wrap EVERY route regardless of group.
+     * Application::bootHttpMiddleware() pre-populates this with the
+     * framework's security defaults (SecurityHeaders, CsrfMiddleware,
+     * CorsMiddleware). Add your own via Router::globalMiddleware([]).
+     *
+     * @var list<string>
+     */
+    private array $globalMiddleware = [];
+
     // Registration methods
     public function get(string $path, array|string|callable $action): Route
     {
@@ -164,10 +174,37 @@ class Router
         $params = $route->extractParams($request->path());
         $request->setRouteParams($params);
 
+        // Global middleware wraps OUTSIDE per-route middleware so things
+        // like SecurityHeaders see the final Response, and CsrfMiddleware
+        // gets a chance to reject early before route logic runs.
+        $middleware = array_merge($this->globalMiddleware, $route->getMiddleware());
+
         return (new Pipeline())
             ->send($request)
-            ->through($route->getMiddleware())
+            ->through($middleware)
             ->then(fn(Request $req) => $this->callAction($route->getAction(), $req, $params));
+    }
+
+    /**
+     * Append middleware to the global stack. Idempotent — duplicate
+     * registrations are de-duplicated so re-bootstrapping doesn't keep
+     * piling up the same class.
+     *
+     * @param list<string>|string $middleware
+     */
+    public function globalMiddleware(array|string $middleware): void
+    {
+        foreach ((array) $middleware as $m) {
+            if (!in_array($m, $this->globalMiddleware, true)) {
+                $this->globalMiddleware[] = $m;
+            }
+        }
+    }
+
+    /** @return list<string> */
+    public function getGlobalMiddleware(): array
+    {
+        return $this->globalMiddleware;
     }
 
     private function callAction(array|string|callable $action, Request $request, array $params): Response

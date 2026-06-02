@@ -110,6 +110,22 @@ class UpdateCommand extends Command
                 $this->cleanup($tmpDir, $zipF);
                 return 1;
             }
+            // Zip-slip defense-in-depth: reject traversal/absolute entries
+            // BEFORE extractTo() touches disk.
+            for ($i = 0, $n = $zip->numFiles; $i < $n; $i++) {
+                $name = (string) $zip->getNameIndex($i);
+                $norm = str_replace('\\', '/', $name);
+                $bad  = $norm === '' || $norm === '.' || $norm === '..'
+                    || str_starts_with($norm, '/')
+                    || preg_match('#^[A-Za-z]:/#', $norm) === 1
+                    || in_array('..', explode('/', $norm), true);
+                if ($bad) {
+                    $zip->close();
+                    $this->error("Unsafe archive entry rejected: $name");
+                    $this->cleanup($tmpDir, $zipF);
+                    return 1;
+                }
+            }
             $zip->extractTo($tmpDir);
             $zip->close();
         } else {
