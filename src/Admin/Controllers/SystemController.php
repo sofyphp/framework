@@ -63,14 +63,21 @@ class SystemController
 
     public function modules(): Response
     {
-        $loader  = Application::getInstance()->getModuleLoader();
-        $modules = $loader->modules();
+        $loader   = Application::getInstance()->getModuleLoader();
+        $base     = Application::getInstance()->basePath();
+        $modules  = $loader->modules();
+        $disabled = $loader->disabled();   // folders present but NOT in bootstrap/modules.php
+        $failed   = $loader->failed();     // tried to load/register but threw
 
+        // ── Enabled & loaded ────────────────────────────────────────────────
         if (empty($modules)) {
-            $body = UI::emptyState(
-                'No modules loaded',
-                'Drop a folder under modules/ — Sofy auto-discovers it as long as modules/{Name}/{Name}.php is a class extending Sofy\\Core\\Module.',
-                icon: '📦',
+            $loadedCard = UI::card(
+                'Loaded (0)',
+                UI::emptyState(
+                    'No modules loaded',
+                    'Drop a folder under modules/ and run `php sofy module:install {Name}` to enable it.',
+                    icon: '📦',
+                ),
             );
         } else {
             $rows = [];
@@ -78,22 +85,79 @@ class SystemController
                 $rows[] = [
                     'name'     => $m->name(),
                     'class'    => get_class($m),
-                    'path'     => str_replace(Application::getInstance()->basePath() . '/', '', $m->path()),
+                    'path'     => str_replace($base . '/', '', $m->path()),
                     'config'   => (string) count($m->config()),
                     'commands' => (string) count($m->commands()),
                 ];
             }
-            $body = UI::dataTable(
-                ['Name', 'Class', 'Path', 'Config keys', 'Commands'],
-                $rows,
-                ['name', 'class', 'path', 'config', 'commands'],
-                perPage: 50,
+            $loadedCard = UI::card(
+                'Loaded (' . count($modules) . ')',
+                UI::dataTable(
+                    ['Name', 'Class', 'Path', 'Config keys', 'Commands'],
+                    $rows,
+                    ['name', 'class', 'path', 'config', 'commands'],
+                    perPage: 50,
+                ),
             );
         }
 
+        // ── Discoverable but not enabled ────────────────────────────────────
+        $disabledCard = null;
+        if (!empty($disabled)) {
+            $disabledRows = array_map(static fn(string $n): array => [
+                'name' => $n,
+                'path' => "modules/{$n}/",
+                'hint' => UI::raw('<code class="sofy-docs-code">php sofy module:install ' . htmlspecialchars($n, ENT_QUOTES, 'UTF-8') . '</code>'),
+            ], $disabled);
+            $disabledCard = UI::card(
+                'Discovered but not enabled (' . count($disabled) . ')',
+                UI::table(
+                    ['Folder', 'Path', 'Enable command'],
+                    $disabledRows,
+                    ['name', 'path', 'hint'],
+                ),
+            );
+        }
+
+        // ── Failed during load / register / routes / boot ───────────────────
+        $failedCard = null;
+        if (!empty($failed)) {
+            $failedRows = [];
+            foreach ($failed as $name => $err) {
+                $failedRows[] = [
+                    'name'    => $name,
+                    'message' => (string) $err->getMessage(),
+                    'where'   => str_replace($base . '/', '', $err->getFile()) . ':' . $err->getLine(),
+                ];
+            }
+            $failedCard = UI::card(
+                'Failed (' . count($failed) . ')',
+                UI::table(
+                    ['Module', 'Error', 'Location'],
+                    $failedRows,
+                    [
+                        fn(array $r) => UI::raw('<strong>' . htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') . '</strong>'),
+                        fn(array $r) => UI::raw('<code class="sofy-docs-code">' . htmlspecialchars($r['message'], ENT_QUOTES, 'UTF-8') . '</code>'),
+                        fn(array $r) => UI::raw('<code class="sofy-docs-code">' . htmlspecialchars($r['where'], ENT_QUOTES, 'UTF-8') . '</code>'),
+                    ],
+                ),
+            );
+        }
+
+        $components = array_filter([
+            $failedCard !== null ? UI::alert(
+                UI::raw('<strong>' . count($failed) . '</strong> module(s) failed during boot. Framework continues with the rest.'),
+                'danger',
+                'Some modules failed to load',
+            ) : null,
+            $loadedCard,
+            $disabledCard,
+            $failedCard,
+        ]);
+
         return Admin::page('Modules')
-            ->header('Loaded modules (' . count($modules) . ')')
-            ->add(UI::card(null, $body))
+            ->header('Modules (' . count($modules) . ' loaded · ' . count($disabled) . ' disabled · ' . count($failed) . ' failed)')
+            ->add(...$components)
             ->response();
     }
 

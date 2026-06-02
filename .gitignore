@@ -9,3 +9,4 @@
 /.claude/
 /.agents/
 /skills-lock.json
+/bootstrap/modules.php

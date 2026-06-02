@@ -123,6 +123,16 @@ class Installer
             $log[] = 'WARN: composer not on PATH — run `composer dump-autoload -o` from a shell.';
         }
 
+        // ── Add to the module enable-list ──
+        // ModuleLoader (since v0.4.10) only loads modules that are explicitly
+        // enabled — installation isn't complete until the registry knows.
+        $loader = \Sofy\Core\Application::getInstance()->getModuleLoader();
+        if ($loader->enable($name)) {
+            $log[] = "Enabled in {$loader->registryPath()}";
+        } else {
+            $log[] = 'Already enabled.';
+        }
+
         // ── Optional migrations ──
         if ($runMigrations) {
             $migrated = $this->runMigrations();
@@ -149,6 +159,13 @@ class Installer
         }
         if (!is_writable($target)) {
             return InstallResult::failure("modules/{$name}/ is not writable by the web user.");
+        }
+
+        // Disable in the enable-list FIRST — once we drop the folder a stale
+        // entry would just produce a "module not found" warning on every boot.
+        $loader = \Sofy\Core\Application::getInstance()->getModuleLoader();
+        if ($loader->disable($name)) {
+            $log[] = "Disabled in {$loader->registryPath()}";
         }
 
         $this->rmrf($target);

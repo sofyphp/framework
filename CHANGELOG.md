@@ -5,6 +5,52 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.10 — 2026-06-02
+
+**Modules now require explicit install — dropping a folder no longer
+breaks the framework.**
+
+User complaint after v0.4.7 was that copying a module folder onto a
+server without first running `composer dump-autoload` produced a
+"Class Orders\Admin\Widgets\OrdersTodayWidget not found" fatal during
+boot — the framework would crash before ANY page could render. Two
+parallel fixes:
+
+  • **Enable-list at `bootstrap/modules.php`.** ModuleLoader now reads
+    a registry of explicitly-enabled modules. Folders present under
+    `modules/` but NOT in the registry are ignored entirely — their
+    code never gets touched. `php sofy module:install {Name}` and the
+    marketplace install button add to the registry as the last step of
+    a successful install, so a fully-wired module appears on the next
+    boot. The marketplace uninstall removes from the registry first.
+
+  • **Defensive register() / routes() / boot() loops.** Even when a
+    module IS in the enable-list, if its class can't autoload or its
+    register hook throws, the loader catches the exception, drops the
+    module from the active set, records it in `$failed`, and keeps
+    booting. The rest of the framework stays online — broken module is
+    quarantined, not contagious.
+
+Backward compat: first boot after upgrade auto-creates the registry
+with every module folder currently on disk, so existing installations
+don't lose their modules. From the second boot on, newly-dropped
+folders need explicit install. `bootstrap/modules.php` is gitignored
+(per-install state, like .env).
+
+New ModuleLoader API surface:
+  • `enable(string $name): bool` / `disable(string $name): bool`
+  • `isEnabled(string $name): bool`
+  • `discoverable(): list<string>` — every folder under modules/
+  • `disabled(): list<string>`     — discoverable but not enabled
+  • `failed(): array<string, Throwable>` — load/register/routes/boot
+  • `registryPath(): string`       — for log messages and admin UI
+
+`/admin/system/modules` page reworked: three cards — Loaded
+(unchanged), Discovered-but-not-enabled (with copy-pasteable
+`php sofy module:install {Name}` command), and Failed (module name,
+error message, file:line). When anything failed, a danger banner sits
+at the top of the page so the operator notices.
+
 ## v0.4.9 — 2026-06-02
 
 **Fix: APP_DEBUG=true now actually shows the debug page for boot-time errors.**

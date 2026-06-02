@@ -131,6 +131,16 @@ class ModuleInstallCommand extends Command
             }
         }
 
+        // ── Step 4: add to the module enable-list ───────────────────────────
+        // Until this step a freshly-dropped folder is invisible to the
+        // ModuleLoader (since v0.4.10). Flipping it on here means the next
+        // request actually wires up routes + widgets + the menu entry.
+        if ($app->getModuleLoader()->enable($name)) {
+            $this->success("Enabled in {$app->getModuleLoader()->registryPath()}");
+        } else {
+            $this->line('    Already enabled.');
+        }
+
         $this->line('');
         $this->success("Module [$name] installed successfully.");
         return 0;
