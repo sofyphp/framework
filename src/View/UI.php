@@ -156,8 +156,13 @@ class UI
 
     // ── Feedback ──────────────────────────────────────────────────────────────
 
-    /** @param 'success'|'warning'|'danger'|'info' $type */
-    public static function alert(string $message, string $type = 'info', ?string $title = null): Alert
+    /**
+     * @param string|UI\Component             $message Plain string is escaped; pass UI::raw('<…>') when you need
+     *                                                 inline markup like <code> or <a> in the message.
+     * @param 'success'|'warning'|'danger'|'info' $type
+     * @param string|UI\Component|null        $title
+     */
+    public static function alert(string|UI\Component $message, string $type = 'info', string|UI\Component|null $title = null): Alert
     {
         return new Alert($message, $type, $title);
     }

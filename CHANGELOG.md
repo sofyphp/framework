@@ -5,6 +5,47 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.4.5 — 2026-06-02
+
+**Bug fix: `UI::alert()` rendered HTML tags as literal text.**
+
+`UI::alert($message)` used to escape its message and title via
+`htmlspecialchars`, so calling it with `'<code>src/</code>'` produced
+`&lt;code&gt;src/&lt;/code&gt;` on the page. Same bug class as the
+v0.4.1 database table fix, on a different component.
+
+Both `$message` and `$title` now accept `string|Component`. Plain
+strings keep getting escaped (the safe default for user-typed text);
+pass `UI::raw('<code>…</code>')` when you need inline markup. Mirrors
+how `UI::card($content)` already worked.
+
+Visible on `/admin/system/update` — the "Heads up" warning now shows
+`<code>` chips for `src/`, `bootstrap/`, `sofy` and `php sofy update`
+instead of escaped angle brackets.
+
+## v0.4.4 — 2026-06-02
+
+**Admin: one-click framework updates + release notes feed.**
+
+New page at `/admin/system/update`:
+
+- Status banner — Up to date / Update available / Offline check
+- Four stat tiles: Installed / Latest / Releases / PHP
+- "Update now" button that runs `php sofy update --no-migrate` on the
+  server, captures its output and shows it in a dark `<pre>`
+- Release notes pulled from GitHub Releases at `sofyphp/framework` with
+  a 30-min cache; falls back to a local `CHANGELOG.md` when no GitHub
+  Releases exist (or the API is unreachable)
+- Each release card shows an `installed` / `newer` / `older` badge and
+  the installed card lights up with an accent border
+- "Refresh release notes" button busts the cache on demand
+- Mini-markdown renderer handles headings, lists, bold/italic, inline
+  + fenced code, http(s) links
+
+Drive-by: REPL banner used to read "Lune REPL" — leftover from the
+framework's previous name. Fixed to "Sofy REPL" to match the brand
+pattern used everywhere else.
+
 ## v0.4.3 — 2026-06-01
 
 **Default dashboard widget pack.**

@@ -82,8 +82,12 @@ class UpdateController
         );
 
         $warning = UI::alert(
-            'The web user must have write access to <code>src/</code>, <code>bootstrap/</code> and <code>sofy</code>, '
-            . 'plus outbound HTTPS to Packagist + GitHub. If permissions are wrong, run <code>php sofy update</code> from a shell instead.',
+            UI::raw(
+                'The web user must have write access to <code class="sofy-docs-code">src/</code>, '
+                . '<code class="sofy-docs-code">bootstrap/</code> and <code class="sofy-docs-code">sofy</code>, '
+                . 'plus outbound HTTPS to Packagist + GitHub. If permissions are wrong, run '
+                . '<code class="sofy-docs-code">php sofy update</code> from a shell instead.',
+            ),
             'warning',
             'Heads up',
         );
