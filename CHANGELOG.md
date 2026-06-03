@@ -5,6 +5,38 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.6.3 — 2026-06-03
+
+**Fix: `full-install` left the optimize caches root-owned, so a later
+`php sofy optimize` / `optimize:clear` run as www-data died with
+"Permission denied" — and the stale route cache kept serving old behaviour.**
+
+Two fixes:
+
+  • `FullInstallCommand::optimizeForProduction()` now `chown`s
+    `bootstrap/cache` to the web user after generating caches. If the optimize
+    step ran via the root fallback (no runuser/sudo), the route/config/preload
+    caches were root-owned; the web user could then neither rewrite nor remove
+    them, and the frozen route cache kept serving the pre-update routing table.
+
+  • `OptimizeClearCommand` no longer fatals on a permission error (with
+    APP_DEBUG on, a raw `unlink()` warning became an ErrorException and aborted
+    + rendered the whole debug page). It now `@unlink`s, reports each file it
+    couldn't remove, and prints the exact `sudo rm` + `chown` to fix it.
+
+If you're stuck now (root-owned caches), the manual fix:
+
+```bash
+sudo rm -f bootstrap/cache/{routes,config,preload}.php
+sudo chown -R www-data:www-data bootstrap/cache
+sudo systemctl restart php8.5-fpm
+```
+
+A frozen route cache is the other reason a redirect/behaviour fix can look
+"not deployed": `Application::boot()` restores cached routes and skips the
+fresh build, so new routes/middleware wiring don't take effect until the cache
+is cleared.
+
 ## v0.6.2 — 2026-06-03
 
 **Hotfix: ERR_TOO_MANY_REDIRECTS on /admin/login — login page and admin gate

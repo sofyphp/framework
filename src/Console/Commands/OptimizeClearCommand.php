@@ -26,12 +26,28 @@ class OptimizeClearCommand extends Command
         ];
 
         $removed = 0;
+        $failed  = [];
         foreach ($files as $label => $file) {
-            if (is_file($file)) {
-                unlink($file);
+            if (!is_file($file)) {
+                continue;
+            }
+            // @-suppressed: with APP_DEBUG on, a raw unlink() warning becomes an
+            // ErrorException and aborts the whole command. Report instead.
+            if (@unlink($file)) {
                 $this->line("  removed {$label}");
                 $removed++;
+            } else {
+                $failed[] = $file;
+                $this->warn("  could not remove {$label} — {$file}");
             }
+        }
+
+        if ($failed !== []) {
+            $this->error('Some cache files could not be removed (permission denied).');
+            $this->line('They are likely owned by root from `full-install`. Fix with:');
+            $this->line('  sudo rm -f ' . implode(' ', $failed));
+            $this->line('  sudo chown -R www-data:www-data ' . dirname($files['config cache']));
+            return 1;
         }
 
         if ($removed === 0) {

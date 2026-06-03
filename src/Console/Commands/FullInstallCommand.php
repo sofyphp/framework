@@ -716,6 +716,12 @@ class FullInstallCommand extends Command
             $this->warn('  optimize step had problems — continuing; you can re-run `php sofy optimize` manually.');
         }
 
+        // Make sure the cache dir + files are owned by the web user. If the
+        // optimize ran via the root fallback (runuser/sudo unavailable), the
+        // generated caches would be root-owned and a later `php sofy optimize`
+        // or `optimize:clear` run as www-data couldn't rewrite/remove them.
+        $this->exec('chown -R ' . $webUser . ':' . $webUser . ' ' . escapeshellarg(base_path('bootstrap/cache')));
+
         // 3 — opcache drop-in. Debian/Ubuntu layout matches the rest of this
         // installer (/etc/php/$phpV/fpm). Fall back to RHEL's /etc/php.d.
         $iniDir = is_dir("/etc/php/$phpV/fpm/conf.d") ? "/etc/php/$phpV/fpm/conf.d"
