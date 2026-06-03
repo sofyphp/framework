@@ -5,6 +5,63 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.7.0 — 2026-06-03
+
+**Consolidation release. One tag that rolls up everything since 0.1 — deploy
+this and a server on any older version comes fully current in a single
+`php sofy update`, no matter which intermediate tags it did or didn't see.**
+
+No new behaviour beyond what the entries below already describe — this exists
+so the framework can be updated in one jump. Detailed per-version notes for
+every change are preserved below this entry.
+
+#### What this bundles (highlights since 0.1)
+
+  • **Security hardening (0.4.13):** auth-by-default for /admin, global CSRF +
+    SecurityHeaders + secure session cookies, CORS locked to APP_URL, zip-slip
+    guards, `orderBy` allow-list, debug-page secret scrubbing,
+    `Url::sameOrigin`.
+  • **Built-in admin login (0.5.2) + the login saga (0.6.1–0.6.4):** a shipped
+    `/admin/login` (UI-component form, CSRF, throttle); fixed `Auth::attempt`
+    array-access-on-Model bug; fixed the `/admin ⇄ /admin/login`
+    ERR_TOO_MANY_REDIRECTS loop; **added the missing `auth()` helper** that was
+    the loop's true root cause.
+  • **Performance (0.5.0–0.5.1):** wired the previously-dead route & config
+    caches into boot, opcache preload generator, `php sofy optimize` /
+    `optimize:clear`, and `full-install` auto-applies the production opcache
+    profile (now chowning caches to the web user).
+  • **Search engine (0.6.0):** zero-dependency inverted index
+    (`Sofy\Search`), `Searchable` model trait, `database`/`collection` drivers,
+    `search:import` / `search:flush`, and a searchable `UI::combobox` built on
+    it (the Orders catalog dropdown now uses it).
+  • **Products module + Orders↔Products integration**, module install/quarantine
+    hardening, and the driver-aware schema/admin work from the 0.4.x line.
+
+#### Also fixed in this release — two parse errors present since the initial 0.1 commit
+
+Both made their class fatal to even load (caught by `php -l` across all 267
+`src/` files during release prep):
+
+  • `Sofy\Events\Dispatcher::setInstance()` declared `static $instance` —
+    `static` isn't a valid parameter type. Now `self $instance`.
+  • `Sofy\Console\Schedule\Event::$command` was typed `string|callable` —
+    `callable` isn't a valid property type. Now `string|\Closure`.
+
+#### Deploying
+
+`php sofy update` overwrites `src/`, `bootstrap/` and the `sofy` CLI from the
+latest release — so **all framework fixes above (which all live in `src/`)
+arrive in full**. App-layer additions (`modules/Products`, `config/search.php`,
+the Orders dogfood, `Main/Controllers`, migrations, docs) are not touched by
+the updater — pull those with your normal app deploy if you want them; the
+framework is fully functional and fixed without them.
+
+```bash
+php sofy update                 # pulls v0.7.0 = entire current framework
+sudo systemctl restart php8.5-fpm
+# clear the sofy_session cookie once if you were stuck in the old loop
+```
+
 ## v0.6.4 — 2026-06-03
 
 **THE redirect loop, root cause: the `auth()` helper never existed.**

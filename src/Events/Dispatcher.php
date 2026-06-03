@@ -29,8 +29,10 @@ class Dispatcher
     }
 
     /** Replace the singleton — used by EventFake in tests. */
-    public static function setInstance(static $instance): void
+    public static function setInstance(self $instance): void
     {
+        // Was `static $instance` — `static` is not a valid parameter type and
+        // made this class fatal on load since the initial commit.
         static::$instance = $instance;
     }
 

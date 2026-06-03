@@ -10,7 +10,10 @@ class Event
     private ?string $label      = null;
 
     public function __construct(
-        private readonly string|callable $command,
+        // PHP forbids `callable` as a property type — use Closure (the common
+        // case; a command string is the other). Was `string|callable`, which
+        // made this class fatal on load since the initial commit.
+        private readonly string|\Closure $command,
     ) {}
 
     // ── Cron expression ───────────────────────────────────────────────────────

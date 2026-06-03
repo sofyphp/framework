@@ -1,6 +1,6 @@
 {
     "name": "sofyphp/framework",
-    "version": "0.6.4",
+    "version": "0.7.0",
     "description": "Sofy \u2014 minimal PHP 8.3 MVC framework",
     "type": "project",
     "license": "MIT",
