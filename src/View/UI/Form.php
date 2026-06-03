@@ -91,6 +91,28 @@ class Form extends Component
         return $this;
     }
 
+    /**
+     * Searchable select — filters options as you type (see UI::combobox).
+     * Pass an endpoint to fetch options remotely from a Search-backed route.
+     *
+     * @param array<int|string,mixed> $options [value => label] or list of
+     *                                          ['value' => …, 'label' => …]
+     */
+    public function combobox(
+        string  $label,
+        string  $name,
+        array   $options,
+        mixed   $selected    = null,
+        bool    $required    = false,
+        string  $placeholder = 'Search…',
+        ?string $endpoint    = null,
+        ?string $hint        = null,
+    ): static {
+        $this->fields[] = compact('label', 'name', 'options', 'selected', 'required', 'placeholder', 'endpoint', 'hint')
+            + ['kind' => 'combobox'];
+        return $this;
+    }
+
     public function checkbox(string $label, string $name, bool $checked = false, ?string $hint = null): static
     {
         $this->fields[] = compact('label', 'name', 'checked', 'hint') + ['kind' => 'checkbox'];
@@ -208,6 +230,7 @@ class Form extends Component
         $ctrl = match ($f['kind']) {
             'input'    => $this->renderInput($f),
             'select'   => $this->renderSelect($f),
+            'combobox' => $this->renderCombobox($f),
             'textarea' => $this->renderTextarea($f),
             'checkbox' => $this->renderCheckbox($f),
             'radio'    => $this->renderRadio($f),
@@ -224,7 +247,7 @@ class Form extends Component
         // Text-like fields carry the transitions.dev error-shake hooks: the row
         // is the .t-input-wrap, the control is the .t-input, and data-error lets
         // the JS replay the shake + flag the error border on load.
-        if (in_array($f['kind'], ['input', 'select', 'textarea'], true)) {
+        if (in_array($f['kind'], ['input', 'select', 'textarea', 'combobox'], true)) {
             $wrapAttr = $error ? ' data-error="1"' : '';
             return '<div class="sofy-form-row t-input-wrap"' . $wrapAttr . '>'
                 . $label . $ctrl . $hintHtml . $errorHtml . '</div>';
@@ -260,6 +283,20 @@ class Form extends Component
             . ' class="sofy-form-ctrl t-input"'
             . ($f['required'] ? ' required' : '')
             . '>' . $opts . '</select>';
+    }
+
+    private function renderCombobox(array $f): string
+    {
+        $cur = $f['selected'] ?? (function_exists('old') ? old($f['name']) : null);
+        $box = new Combobox($f['name'], $f['options'], $cur !== null ? (string) $cur : null);
+        $box->placeholder((string) ($f['placeholder'] ?? 'Search…'));
+        if ($f['required'] ?? false) {
+            $box->required();
+        }
+        if (!empty($f['endpoint'])) {
+            $box->endpoint((string) $f['endpoint']);
+        }
+        return $box->render();
     }
 
     private function renderTextarea(array $f): string

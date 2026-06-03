@@ -5,6 +5,83 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.6.0 — 2026-06-03
+
+**New subsystem: a zero-dependency search engine — inverted index + in-memory
+ranker — and the first component built on it, a searchable Combobox.**
+
+This started from "are there enough components?" The honest gap wasn't count
+(46 components) but depth at the CRUD layer: building Orders↔Products we
+hand-wrote a product `<select>` that dies past a few hundred rows. Rather than
+bolt search onto one component, this adds a real engine that any component (and
+any model) can consume.
+
+#### `Sofy\Search` — the engine
+
+  • `Search` facade — `Search::query(Product::class, 'red router')->get()`,
+    `Search::index($model)`, `Search::import(Model::class)`, `Search::flush()`,
+    `Search::rank($items, $q, $textOf)` (in-memory, for components).
+  • `Engine` — tokenizes + weights documents, ranks queries. BM25-lite:
+    score = Σ (field weight × term frequency) over matching terms; the last
+    query token matches as a prefix (autocomplete).
+  • `Tokenizer` — lowercase, accent-fold (Latin-1 + Cyrillic, no ext-intl),
+    stopwords (en/ru/custom), min length, prefix. Config in
+    `config/search.php`.
+  • Drivers (mirrors the Cache/Session/Grammar driver pattern):
+      - `DatabaseDriver` — one portable `search_index` table; identical on
+        MySQL / PostgreSQL / SQLite, no engine-specific full-text DDL.
+      - `CollectionDriver` — ephemeral in-memory index (tests, transient).
+  • `Searchable` trait — `use Searchable;` auto-(re)indexes a model on save
+    and drops it on delete (via `SearchableObserver`), adds `Model::search()`.
+    Declare field weights in `config('search.indexes')`.
+  • `SearchResult` — iterable, countable; hydrates models in ranked order.
+
+Migration `create_search_index_table` (driver-agnostic). Commands:
+`php sofy search:import "App\Models\Post" [--fresh]`, `php sofy search:flush`.
+
+#### `UI::combobox` — searchable select (first consumer)
+
+The component a plain `<select>` can't be once you pass a few hundred options.
+
+```php
+UI::form(...)->combobox('Product', 'product_id', $options, selected: $id);
+UI::combobox('product_id', $options);                       // standalone
+UI::combobox('product_id', [])->endpoint('/products/search'); // Search-backed
+```
+
+  • Local mode: filters provided options client-side (accent-aware), to a few
+    thousand rows.
+  • Remote mode: `->endpoint($url)` fetches `?q=…` as you type — back it with a
+    3-line route calling `Model::search()`. The engine ranks; no glue.
+  • Markup-only component; the `sofyCombo` behaviour + styles live in Page
+    (same pattern as DataTable's `sofyDT`), shipped once per page. Keyboard
+    nav (↑/↓/Enter/Esc), click-outside close, hidden value field.
+  • New `Form::combobox()` field kind; `UI::combobox()` facade.
+
+#### Dogfood
+
+`modules/Orders` — the catalog "add item" dropdown that was a hand-built
+500-option `<select>` is now `UI::combobox(...)->placeholder('Поиск товара…')`.
+The exact hand-rolled HTML that prompted this is gone.
+
+#### Verified
+
+  • Tokenizer: stopwords dropped, accents folded, term frequencies
+  • Engine (CollectionDriver): field-weighted ranking (name w3 > desc w1),
+    multi-term, prefix autocomplete, `rank()` for components
+  • DatabaseDriver on SQLite: put / weighted search / prefix / LIKE-escape
+    (`%` → 0 results) / remove
+  • Combobox: hidden value + selected label + options render; in a UI::form
+    with label wrapper; `sofyCombo` JS + CSS present on every Page; /ui-demo
+    still 200
+
+#### Notes
+
+No stemming (prefix matching covers autocomplete; add synonyms in
+`toSearchableArray()`). Native full-text (FULLTEXT/tsvector/FTS5) deliberately
+not used — the portable table wins on identical cross-engine behaviour; a
+native driver can drop in later without changing calling code.
+
 ## v0.5.2 — 2026-06-03
 
 **Ships a built-in admin login. Closes the gap v0.4.13 opened: auth was on

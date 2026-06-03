@@ -301,6 +301,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .sofy-form-ctrl:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.1)}
 .sofy-form-ctrl::placeholder{color:var(--muted);opacity:.6}
 textarea.sofy-form-ctrl{resize:vertical;min-height:96px}
+.sofy-combo{position:relative}
+.sofy-combo-input{cursor:text}
+.sofy-combo-list{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 4px);margin:0;padding:4px;list-style:none;background:var(--surf);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px -12px rgba(0,0,0,.28);max-height:260px;overflow:auto;display:none}
+.sofy-combo.open .sofy-combo-list{display:block}
+.sofy-combo-opt{padding:8px 11px;border-radius:7px;font-size:13px;color:var(--text);cursor:pointer}
+.sofy-combo-opt:hover,.sofy-combo-opt.active{background:rgba(217,119,87,.12);color:var(--accent)}
+.sofy-combo-opt[aria-selected="true"]{font-weight:600}
+.sofy-combo-empty{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 4px);padding:10px 12px;font-size:12.5px;color:var(--muted);background:var(--surf);border:1px solid var(--border);border-radius:10px}
+.sofy-combo:not(.open) .sofy-combo-empty{display:none}
 .sofy-form-hint{font-size:11px;color:var(--muted);margin-top:4px}
 .sofy-form-err{font-size:11px;color:var(--danger);margin-top:4px}
 .sofy-form-check{display:flex;align-items:center;gap:10px;cursor:pointer}
@@ -1013,6 +1022,62 @@ var sofyCmd=(function(){
         if(e.key==='Escape'&&!el.hidden)close();
     });
     return{open:open,close:close,toggle:function(){el.hidden?open():close();},filter:filter};
+})();
+
+/* ── Combobox (searchable select) ── */
+var sofyCombo=(function(){
+    function norm(s){return (s||'').toString().toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'');}
+    function box(node){return node.closest('.sofy-combo');}
+    function open(input){var b=box(input);if(!b)return;b.classList.add('open');input.setAttribute('aria-expanded','true');filter(input);}
+    function close(b){b.classList.remove('open');var inp=b.querySelector('.sofy-combo-input');if(inp)inp.setAttribute('aria-expanded','false');b.querySelectorAll('.sofy-combo-opt.active').forEach(function(o){o.classList.remove('active');});}
+    function filter(input){
+        var b=box(input);if(!b)return;
+        b.classList.add('open');input.setAttribute('aria-expanded','true');
+        var ep=b.getAttribute('data-endpoint');
+        if(ep){return remote(b,ep,input.value);}
+        var q=norm(input.value),shown=0;
+        b.querySelectorAll('.sofy-combo-opt').forEach(function(o){
+            var hit=q===''||o.getAttribute('data-text').indexOf(q)>-1;
+            o.hidden=!hit;if(hit)shown++;
+        });
+        var em=b.querySelector('.sofy-combo-empty');if(em)em.hidden=shown>0;
+    }
+    var timer=null;
+    function remote(b,ep,q){
+        if(timer)clearTimeout(timer);
+        timer=setTimeout(function(){
+            fetch(ep+(ep.indexOf('?')>-1?'&':'?')+'q='+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(items){
+                var ul=b.querySelector('.sofy-combo-list');ul.innerHTML='';
+                (items||[]).forEach(function(it){
+                    var li=document.createElement('li');li.className='sofy-combo-opt';li.setAttribute('role','option');
+                    li.setAttribute('data-value',it.value);li.setAttribute('data-text',norm(it.label));li.textContent=it.label;
+                    li.addEventListener('mousedown',function(e){pick(e,li);});
+                    ul.appendChild(li);
+                });
+                var em=b.querySelector('.sofy-combo-empty');if(em)em.hidden=(items&&items.length>0);
+            }).catch(function(){});
+        },180);
+    }
+    function pick(e,li){
+        e.preventDefault();
+        var b=box(li);if(!b)return;
+        b.querySelector('input[type=hidden]').value=li.getAttribute('data-value');
+        b.querySelector('.sofy-combo-input').value=li.textContent;
+        close(b);
+    }
+    function key(e,input){
+        var b=box(input);if(!b)return;
+        var opts=Array.prototype.filter.call(b.querySelectorAll('.sofy-combo-opt'),function(o){return !o.hidden;});
+        var cur=b.querySelector('.sofy-combo-opt.active');var i=opts.indexOf(cur);
+        if(e.key==='ArrowDown'){e.preventDefault();open(input);if(cur)cur.classList.remove('active');var n=opts[Math.min(i+1,opts.length-1)]||opts[0];if(n){n.classList.add('active');n.scrollIntoView({block:'nearest'});}}
+        else if(e.key==='ArrowUp'){e.preventDefault();if(cur)cur.classList.remove('active');var p=opts[Math.max(i-1,0)];if(p){p.classList.add('active');p.scrollIntoView({block:'nearest'});}}
+        else if(e.key==='Enter'){if(cur){e.preventDefault();pick(e,cur);}}
+        else if(e.key==='Escape'){close(b);}
+    }
+    document.addEventListener('mousedown',function(e){
+        document.querySelectorAll('.sofy-combo.open').forEach(function(b){if(!b.contains(e.target))close(b);});
+    });
+    return{open:open,filter:filter,pick:pick,key:key};
 })();
 </script>
 JS;

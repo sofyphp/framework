@@ -45,6 +45,8 @@ use Sofy\Console\Commands\RouteCacheCommand;
 use Sofy\Console\Commands\RouteClearCommand;
 use Sofy\Console\Commands\OptimizeCommand;
 use Sofy\Console\Commands\OptimizeClearCommand;
+use Sofy\Console\Commands\SearchImportCommand;
+use Sofy\Console\Commands\SearchFlushCommand;
 use Sofy\Console\Commands\MakePolicyCommand;
 use Sofy\Console\Commands\MakeNotificationCommand;
 use Sofy\Console\Commands\MakeTestCommand;
@@ -110,6 +112,8 @@ class Kernel
         $this->register(MakeObserverCommand::class);
         $this->register(OptimizeCommand::class);
         $this->register(OptimizeClearCommand::class);
+        $this->register(SearchImportCommand::class);
+        $this->register(SearchFlushCommand::class);
     }
 
     /** Регистрирует класс команды. */

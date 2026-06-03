@@ -218,22 +218,21 @@ class OrdersController
                 $products = [];
             }
             if (!empty($products)) {
-                $opts = '';
+                // Searchable combobox instead of a 500-option <select> — see
+                // UI::combobox / docs/17-search.md. Options are sku — name · price.
+                $options = [];
                 foreach ($products as $p) {
                     /** @var \Products\Models\Product $p */
-                    $opts .= '<option value="' . (int) $p->id . '" data-price="' . htmlspecialchars((string) $p->price, ENT_QUOTES, 'UTF-8') . '">'
-                        . htmlspecialchars((string) $p->sku, ENT_QUOTES, 'UTF-8') . ' — '
-                        . htmlspecialchars((string) $p->name, ENT_QUOTES, 'UTF-8') . ' · '
-                        . number_format((float) $p->price, 2, '.', ' ') . ' ' . (string) $order->currency
-                        . '</option>';
+                    $options[(string) (int) $p->id] = (string) $p->sku . ' — ' . (string) $p->name
+                        . ' · ' . number_format((float) $p->price, 2, '.', ' ') . ' ' . (string) $order->currency;
                 }
+                $combo = (string) UI::combobox('product_id', $options)->placeholder('Поиск товара…')->required();
+
                 $catalogForm =
                     '<form method="POST" action="/admin/orders/' . (int) $order->id . '" class="sofy-orders-additem">'
                     . ($csrf !== '' ? '<input type="hidden" name="_token" value="' . htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') . '">' : '')
                     . '<input type="hidden" name="_action" value="add_from_catalog">'
-                    . '<select class="sofy-form-ctrl" name="product_id" required style="flex:1">'
-                    . '<option value="">— выберите товар из каталога —</option>' . $opts
-                    . '</select>'
+                    . '<div style="flex:1">' . $combo . '</div>'
                     . '<input class="sofy-form-ctrl" name="item_qty" required type="number" min="1" step="1" value="1" style="max-width:90px">'
                     . '<button class="sofy-btn sofy-btn-primary" type="submit">+ Из каталога</button>'
                     . '</form>';

@@ -25,6 +25,7 @@ use Sofy\View\UI\Badge;
 use Sofy\View\UI\Breadcrumb;
 use Sofy\View\UI\Button;
 use Sofy\View\UI\Card;
+use Sofy\View\UI\Combobox;
 use Sofy\View\UI\Code;
 use Sofy\View\UI\Divider;
 use Sofy\View\UI\EmptyState;
@@ -471,6 +472,21 @@ class UI
     public static function dataTable(array $headers, array $rows, ?array $cols = null, string $empty = 'No records found.', int $perPage = 15, bool $searchable = true, array $nosort = []): DataTable
     {
         return new DataTable($headers, $rows, $cols, $empty, $perPage, $searchable, $nosort);
+    }
+
+    /**
+     * Searchable select — filters its options as you type. The component a
+     * plain <select> can't be once you pass a few hundred options.
+     *
+     *   UI::combobox('product_id', $options, selected: $id)
+     *   UI::combobox('product_id', [])->endpoint('/admin/products/search')
+     *
+     * @param array<int|string,mixed> $options [value => label] or list of
+     *                                         ['value' => …, 'label' => …]
+     */
+    public static function combobox(string $name, array $options = [], int|string|null $selected = null): Combobox
+    {
+        return new Combobox($name, $options, $selected);
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────
