@@ -5,6 +5,46 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.5.1 — 2026-06-03
+
+**`full-install` now sets up the v0.5.0 production performance stack
+automatically.**
+
+The opcache preload + JIT config and the route/config caches were a manual
+post-install step. The installer now does it for you as the final step (after
+migrations, so caches reflect the fully-installed app).
+
+New wizard prompt — *"Optimize for production (opcache preload + JIT +
+route/config cache)?"* (default yes). When enabled, the new
+`optimizeForProduction()` step:
+
+  1. `composer dump-autoload --optimize --classmap-authoritative --no-dev`
+  2. `php sofy optimize` (run as the web user so cache files are owned by
+     FPM's user, not root) → route cache + config cache + preload.php
+  3. Writes `/etc/php/{ver}/fpm/conf.d/99-sofy.ini` (falls back to
+     `/etc/php.d/` on RHEL) with:
+
+         opcache.enable=1
+         opcache.memory_consumption=256
+         opcache.max_accelerated_files=20000
+         opcache.preload={app}/bootstrap/cache/preload.php
+         opcache.preload_user=www-data
+         opcache.validate_timestamps=0
+         opcache.jit=tracing
+         opcache.jit_buffer_size=64M
+
+  4. `systemctl restart php{ver}-fpm` (restart, not reload — preload only
+     engages on a full restart)
+
+Order matters and is enforced: preload.php is generated (step 2) BEFORE FPM
+restarts pointing `opcache.preload` at it (step 4), so FPM never logs a fatal
+missing-preload error on startup.
+
+The install summary box gained an *Optimize* row. The step prints the
+post-deploy reminder: re-run `php sofy optimize` + restart FPM after every
+deploy (required because `validate_timestamps=0` makes opcache ignore file
+mtimes).
+
 ## v0.5.0 — 2026-06-03
 
 **Performance release. Wires three dead-on-arrival cache commands into the
