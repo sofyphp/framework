@@ -207,6 +207,74 @@ class Router
         return $this->globalMiddleware;
     }
 
+    /**
+     * Snapshot the full routing table for `php sofy route:cache`. Captures
+     * the dynamic map, the O(1) static index AND the named-route table, so a
+     * restore is byte-for-byte equivalent to a fresh build — including the
+     * pre-compiled regex inside each Route (the expensive part we want to
+     * skip per request).
+     *
+     * Global middleware is deliberately NOT cached: it's re-applied fresh by
+     * Application::bootHttpMiddleware() on every boot, so the security stack
+     * always reflects the current framework version even against a stale
+     * route cache.
+     *
+     * @throws \RuntimeException if any route uses a Closure action — closures
+     *         can't be serialized. Convert them to [Controller::class, 'm']
+     *         array actions, or don't cache routes.
+     *
+     * @return array{routes: array<string, Route[]>, staticRoutes: array<string, array<string, Route>>, namedRoutes: array<string, Route>}
+     */
+    /**
+     * List routes whose action is a Closure — these block serialization.
+     * Empty array means the table is fully cacheable. Non-throwing so callers
+     * (route:cache, optimize) can decide whether to hard-fail or soft-skip.
+     *
+     * @return list<string>  e.g. ["GET /", "POST /lang/{locale}"]
+     */
+    public function uncacheableRoutes(): array
+    {
+        $out = [];
+        foreach ($this->routes as $method => $list) {
+            foreach ($list as $route) {
+                if ($route->getAction() instanceof \Closure) {
+                    $out[] = $method . ' ' . $route->getPath();
+                }
+            }
+        }
+        return array_values(array_unique($out));
+    }
+
+    public function cacheState(): array
+    {
+        $closures = $this->uncacheableRoutes();
+        if ($closures !== []) {
+            throw new \RuntimeException(
+                'Closure route actions cannot be cached: ' . implode(', ', $closures)
+                . ". Convert them to [Controller::class, 'method'] actions.",
+            );
+        }
+
+        return [
+            'routes'       => $this->routes,
+            'staticRoutes' => $this->staticRoutes,
+            'namedRoutes'  => $this->namedRoutes,
+        ];
+    }
+
+    /**
+     * Restore a routing table produced by cacheState(). Replaces the route
+     * tables wholesale; leaves global middleware untouched (see cacheState).
+     *
+     * @param array{routes?: array<string, Route[]>, staticRoutes?: array<string, array<string, Route>>, namedRoutes?: array<string, Route>} $state
+     */
+    public function restoreState(array $state): void
+    {
+        $this->routes       = $state['routes']       ?? [];
+        $this->staticRoutes = $state['staticRoutes'] ?? [];
+        $this->namedRoutes  = $state['namedRoutes']  ?? [];
+    }
+
     private function callAction(array|string|callable $action, Request $request, array $params): Response
     {
         // Closure

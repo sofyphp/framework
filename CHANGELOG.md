@@ -5,6 +5,97 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.5.0 — 2026-06-03
+
+**Performance release. Wires three dead-on-arrival cache commands into the
+boot path, adds opcache preloading, and makes the default app cacheable.**
+
+Baseline measured first: boot is already ~0.6–1 ms warm, TTFB ~1.2 ms.
+Single-request latency has almost nothing left to cut. The wins here are in
+**throughput** — stop per-request work that never changes between requests —
+and they show up under FPM concurrency, not in a single-shot CLI loop.
+
+#### `php sofy optimize` — one command for production
+
+New command runs config:cache + route:cache + generates an opcache preload
+script, then prints the php.ini block to wire it. `php sofy optimize:clear`
+reverses everything for local dev.
+
+#### Route cache — the dead feature, now alive
+
+`php sofy route:cache` existed since the first release but wrote a file
+`Application::boot()` never read (`grep -c cache/routes Application.php` was
+literally 0). Now:
+
+  • `Router::cacheState()` / `restoreState()` snapshot the FULL routing
+    table — dynamic map, the O(1) static index, AND named routes — including
+    each Route's pre-compiled URL regex (the per-request cost we skip).
+  • `Application::boot()` restores from `bootstrap/cache/routes.php` when
+    present and skips requiring every routes.php + reconstructing every Route.
+    Cost saved scales `O(number of routes)`.
+  • Global middleware is deliberately NOT cached — re-applied fresh each boot
+    so the security stack always matches the current framework version.
+
+Closures can't serialize, so `route:cache` lists any closure routes and
+refuses (one closure disables the whole all-or-nothing cache).
+`Router::uncacheableRoutes()` powers a non-throwing check so `optimize`
+soft-skips route caching while still applying config + preload.
+
+#### Config cache — also was dead, also wired
+
+`php sofy config:cache` pre-merges every `config/*.php` (with `env()`
+resolved) into one file. `Application::loadCachedConfig()` now seeds the
+config cache from it at construct — zero per-file `require`/`stat` per
+request. Re-run after editing `.env` (values are baked in at cache time).
+
+#### opcache preload generator
+
+`optimize` writes `bootstrap/cache/preload.php` — a self-locating script
+(`dirname(__DIR__, 2)`) that `opcache_compile_file`s every class under
+`src/`, `app/`, `Main/`, `modules/`, `config/`. Point `opcache.preload` at
+it and FPM compiles the whole framework into shared memory ONCE at master
+start; workers inherit ready classes with zero per-request compile. Typical
+real-world win: 1.3–2× throughput. Regenerate + reload FPM per deploy.
+
+#### Default app is now cacheable
+
+The shipped scaffold used closure routes, which blocked route caching out of
+the box. Converted to controllers:
+
+  • `routes/web.php` welcome / debug-error / lang-switch → new
+    `Main\Controllers\HomeController` (lang switch now uses `Url::sameOrigin`)
+  • `routes/api.php` ping → new `Main\Controllers\Api\PingController`
+  • Demo module → new `Demo\Controllers\DemoController`
+
+A fresh app now caches all 40 routes cleanly.
+
+#### New APIs
+
+  • `Router::cacheState(): array` / `restoreState(array): void`
+  • `Router::uncacheableRoutes(): list<string>`
+  • `Application::buildRoutes(): void` (fresh, un-cached route build)
+  • Commands: `optimize`, `optimize:clear`
+
+#### Docs
+
+`docs/16-performance.md` — the three levers (preload, validate_timestamps=0,
+route/config cache), the php.ini block, why CLI benchmarks can't show the
+preload win, and how to measure the real delta with `ab`/`wrk` on the server.
+
+#### Functional verification (php -S, serving from cache)
+
+  • All routes serve from cache: /, /docs, /docs/{section}, /ui-demo, /demo,
+    /api/ping, /api/demo → 200; /admin → 503 (auth)
+  • Security headers still present (global mw fresh, not cached)
+  • CSRF still 419 on POST without token
+  • Config served from cache (app.name correct)
+  • Route cache build: 40 routes → bootstrap/cache/routes.php; warm-boot
+    delta ~13% (0.576 → 0.501 ms), scales with route count
+
+> Note: the preload + JIT + `validate_timestamps=0` wins are FPM-under-load
+> effects and cannot be shown in a single-shot CLI benchmark — measure on the
+> server with `ab -n 2000 -c 50` before/after. See docs/16-performance.md.
+
 ## v0.4.13 — 2026-06-02
 
 **Security hardening release. Fixes 10 findings from the v0.4.12 audit

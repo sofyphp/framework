@@ -10,3 +10,5 @@
 /.agents/
 /skills-lock.json
 /bootstrap/modules.php
+/bootstrap/cache/*
+!/bootstrap/cache/.gitkeep

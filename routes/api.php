@@ -2,13 +2,12 @@
 
 /** @var \Sofy\Http\Router $router */
 
-use Sofy\Http\Request;
-use Sofy\Http\Response;
+use Main\Controllers\Api\PingController;
 
-// Все роуты здесь автоматически получают префикс /api
-$router->get('/ping', function (Request $request): Response {
-    return json_response(['status' => 'ok', 'time' => now()]);
-});
+// Все роуты здесь автоматически получают префикс /api.
+// Controller actions (not closures) keep the table cacheable — see
+// `php sofy route:cache` / `php sofy optimize`.
+$router->get('/ping', [PingController::class, 'index']);
 
 // Пример API-ресурса:
 // $router->apiResource('users', \Main\Controllers\Api\UserController::class);

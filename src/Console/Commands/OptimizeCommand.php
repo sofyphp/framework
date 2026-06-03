@@ -1,0 +1,171 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Sofy\Console\Commands;
+
+use Sofy\Console\Command;
+
+/**
+ * One command to make a production deploy fast:
+ *   1. config:cache  — pre-merge config/*.php (env baked in)
+ *   2. route:cache   — pre-build the routing table + compiled regexes
+ *   3. preload gen   — emit bootstrap/cache/preload.php for opcache.preload
+ *
+ * After running, point your php.ini / pool config at the preload file and
+ * set opcache.validate_timestamps=0 (see docs/22-performance.md). Re-run
+ * after deploying new code or editing .env. `php sofy optimize:clear`
+ * reverses everything for local dev.
+ */
+class OptimizeCommand extends Command
+{
+    protected string $signature   = 'optimize';
+    protected string $description  = 'Cache config + routes and generate an opcache preload script';
+
+    public function handle(): int
+    {
+        $base     = function_exists('base_path') ? base_path() : (string) getcwd();
+        $cacheDir = $base . '/bootstrap/cache';
+        if (!is_dir($cacheDir) && !mkdir($cacheDir, 0755, true) && !is_dir($cacheDir)) {
+            $this->error("Could not create $cacheDir");
+            return 1;
+        }
+
+        $this->info('Optimizing Sofy for production…');
+        $this->line('');
+
+        // 1. config cache
+        $this->line('  • config:cache');
+        $code = (new ConfigCacheCommand())->handle();
+        if ($code !== 0) {
+            $this->warn('    config:cache reported a problem — continuing.');
+        }
+
+        // 2. route cache — soft-skip if the app has Closure routes. Closures
+        // can't serialize, but config + preload still deliver real wins, so
+        // optimize shouldn't hard-fail the whole deploy over them.
+        $this->line('  • route:cache');
+        $closures = $this->closureRoutes($base);
+        if ($closures !== []) {
+            $this->warn('    skipped — these routes use Closure actions (not cacheable):');
+            foreach ($closures as $r) {
+                $this->line('        ' . $r);
+            }
+            $this->line("    Convert them to [Controller::class, 'method'] actions, then re-run.");
+        } else {
+            $code = (new RouteCacheCommand())->handle();
+            if ($code !== 0) {
+                $this->error('    route:cache failed — continuing with config + preload only.');
+            }
+        }
+
+        // 3. preload script
+        $this->line('  • preload generator');
+        $preloadFile = $this->writePreloadScript($cacheDir);
+
+        $this->line('');
+        $this->success('Optimized. Caches written to bootstrap/cache/.');
+        $this->line('');
+        $this->comment('Next steps for a real throughput win (one-time, on the server):');
+        $this->line('  1. In php.ini (or your fpm pool):');
+        $this->line('       opcache.preload=' . $preloadFile);
+        $this->line('       opcache.preload_user=www-data');
+        $this->line('       opcache.validate_timestamps=0');
+        $this->line('       opcache.jit=tracing');
+        $this->line('       opcache.jit_buffer_size=64M');
+        $this->line('  2. Reload PHP-FPM:  sudo systemctl reload php8.5-fpm');
+        $this->line('');
+        $this->comment('Run `php sofy optimize:clear` for local development (live config + routes).');
+        $this->comment('Re-run `php sofy optimize` after deploying code or editing .env.');
+        return 0;
+    }
+
+    /**
+     * Emit an opcache.preload script that compiles every framework + app class
+     * into shared memory once at FPM master start, so no worker pays the
+     * compile/stat cost per request. Idempotent — overwrites on each run.
+     */
+    /**
+     * Boot a throwaway app (cache-free) and ask the router which routes use
+     * Closure actions, so optimize can decide whether route caching is viable.
+     *
+     * @return list<string>
+     */
+    private function closureRoutes(string $base): array
+    {
+        try {
+            @unlink($base . '/bootstrap/cache/routes.php'); // force fresh build
+            $app = new \Sofy\Core\Application($base);
+            $app->loadModules();
+            $app->boot();
+            return $app->router()->uncacheableRoutes();
+        } catch (\Throwable) {
+            return []; // if probing fails, let route:cache report the real error
+        }
+    }
+
+    private function writePreloadScript(string $cacheDir): string
+    {
+        $file = $cacheDir . '/preload.php';
+
+        // Directories whose *.php we precompile. src/ is the framework; the
+        // rest are the app's own code. vendor/ is covered by requiring the
+        // composer autoloader, which itself is opcached on first hit.
+        $dirs = ['src', 'app', 'Main', 'modules', 'config'];
+        $dirsLiteral = "['" . implode("', '", $dirs) . "']";
+
+        $script = <<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        /*
+         | ----------------------------------------------------------------------
+         | Sofy opcache preload script — GENERATED by `php sofy optimize`.
+         | ----------------------------------------------------------------------
+         | Point opcache.preload at this file. At FPM master start PHP compiles
+         | every class below into shared memory ONCE; workers inherit them with
+         | zero per-request compile or stat cost. Regenerate after deploying.
+         |
+         | Do not edit by hand — re-run `php sofy optimize`.
+        */
+
+        // Self-locating: this file lives in bootstrap/cache/, so the project
+        // root is two levels up. Survives the project being moved/symlinked.
+        \$base = dirname(__DIR__, 2);
+
+        // Resolve classes through the optimized composer autoloader.
+        require \$base . '/vendor/autoload.php';
+
+        \$dirs  = {$dirsLiteral};
+        \$count = 0;
+
+        foreach (\$dirs as \$dir) {
+            \$path = \$base . '/' . \$dir;
+            if (!is_dir(\$path)) {
+                continue;
+            }
+            \$it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator(\$path, FilesystemIterator::SKIP_DOTS),
+            );
+            foreach (\$it as \$f) {
+                if (\$f->getExtension() !== 'php') {
+                    continue;
+                }
+                // opcache_compile_file warms the file without executing it.
+                // Suppressed: a file that can't compile standalone (e.g. a
+                // template fragment) shouldn't abort the whole preload.
+                @opcache_compile_file(\$f->getPathname());
+                \$count++;
+            }
+        }
+
+        // Visible in FPM startup logs so you can confirm preload ran.
+        error_log('[sofy] opcache preload compiled ' . \$count . ' files');
+
+        PHP;
+
+        file_put_contents($file, $script);
+        return $file;
+    }
+}

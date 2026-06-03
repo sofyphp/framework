@@ -43,6 +43,8 @@ use Sofy\Console\Commands\ConfigClearCommand;
 use Sofy\Console\Commands\ViewClearCommand;
 use Sofy\Console\Commands\RouteCacheCommand;
 use Sofy\Console\Commands\RouteClearCommand;
+use Sofy\Console\Commands\OptimizeCommand;
+use Sofy\Console\Commands\OptimizeClearCommand;
 use Sofy\Console\Commands\MakePolicyCommand;
 use Sofy\Console\Commands\MakeNotificationCommand;
 use Sofy\Console\Commands\MakeTestCommand;
@@ -106,6 +108,8 @@ class Kernel
         $this->register(MakeTestCommand::class);
         $this->register(MakeFactoryCommand::class);
         $this->register(MakeObserverCommand::class);
+        $this->register(OptimizeCommand::class);
+        $this->register(OptimizeClearCommand::class);
     }
 
     /** Регистрирует класс команды. */

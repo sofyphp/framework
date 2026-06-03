@@ -70,6 +70,31 @@ class Application
         // and the operator sees a blank Nginx 500 instead of the debug page.
         $this->registerErrorHandlers();
         $this->registerCoreBindings();
+        $this->loadCachedConfig();
+    }
+
+    /**
+     * Warm the config cache from bootstrap/cache/config.php when present.
+     * `php sofy config:cache` writes every config/*.php into one pre-merged
+     * array with env() already resolved — so a production request does zero
+     * config-file requires and zero per-file stat() calls.
+     *
+     * Note: env() values are baked in at cache time. Re-run config:cache (or
+     * `php sofy optimize`) after editing .env. `php sofy optimize:clear`
+     * removes the cache and restores live per-file loading.
+     */
+    private function loadCachedConfig(): void
+    {
+        $cacheFile = $this->basePath('bootstrap/cache/config.php');
+        if (!is_file($cacheFile)) {
+            return;
+        }
+        $cached = require $cacheFile;
+        if (is_array($cached)) {
+            // Module configs injected later via mergeConfig() still merge on
+            // top — this only pre-seeds the base config/ files.
+            $this->configCache = $cached + $this->configCache;
+        }
     }
 
     public static function getInstance(): static
@@ -199,10 +224,48 @@ class Application
     {
         $this->bootDatabase();
         $this->bootHttpMiddleware();
-        $this->loadRoutes();
-        $this->moduleLoader->loadRoutes($this->router());
+        // Fast path: restore the pre-built routing table (with its compiled
+        // regexes) from bootstrap/cache/routes.php instead of requiring every
+        // routes.php and re-constructing ~80 Route objects per request.
+        if (!$this->loadRoutesFromCache()) {
+            $this->buildRoutes();
+        }
         $this->moduleLoader->bootAll($this);
         return $this;
+    }
+
+    /**
+     * Build the routing table from scratch: app routes (web/api/admin) plus
+     * every module's routes(). This is the un-cached path and also what
+     * `php sofy route:cache` invokes to produce the snapshot.
+     */
+    public function buildRoutes(): void
+    {
+        $this->loadRoutes();
+        $this->moduleLoader->loadRoutes($this->router());
+    }
+
+    /**
+     * Restore routes from bootstrap/cache/routes.php if it exists and is
+     * valid. Returns true when the cache was applied (so boot() skips the
+     * fresh build entirely), false to fall through to buildRoutes().
+     */
+    private function loadRoutesFromCache(): bool
+    {
+        $cacheFile = $this->basePath('bootstrap/cache/routes.php');
+        if (!is_file($cacheFile)) {
+            return false;
+        }
+        try {
+            $state = require $cacheFile;
+        } catch (Throwable) {
+            return false; // corrupt cache — rebuild live rather than 500
+        }
+        if (!is_array($state) || !isset($state['routes'])) {
+            return false;
+        }
+        $this->router()->restoreState($state);
+        return true;
     }
 
     public function bootForConsole(): static
