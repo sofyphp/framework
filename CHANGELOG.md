@@ -5,6 +5,61 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.5.2 — 2026-06-03
+
+**Ships a built-in admin login. Closes the gap v0.4.13 opened: auth was on
+by default but the framework had no login form, so a fresh deploy hit a 503
+wall at /admin with no way in.**
+
+#### `Sofy\Admin\Controllers\AuthController`
+
+A self-contained admin login — no app view file required:
+
+  • `GET  /admin/login`  — renders a styled login page (brand-matched,
+    standalone HTML). Redirects to /admin if already signed in.
+  • `POST /admin/login`  — verifies via `Auth::attempt()` against
+    `Main\Models\User`, enforces the panel's `requiredRole` (admin), then
+    redirects to the validated `?next=` (via `Url::sameOrigin`) or /admin.
+  • `POST /admin/logout` — `Auth::logout()` + redirect to login.
+
+Protected by the existing global CsrfMiddleware (the form embeds
+`csrf_field()`). Brute-force throttle: 5 attempts per IP+email per 15 min
+via the cache (fails open if cache is down). DB errors during attempt return
+a clean 503, not a 500 stack.
+
+Routes are registered in `admin-routes.php` OUTSIDE the EnsureAdmin group.
+Override by defining `/admin/login` in `routes/web.php` (loaded earlier).
+
+#### Fix: EnsureAdmin login-route detection was broken
+
+`EnsureAdmin::loginRouteExists()` (added in v0.4.13) iterated
+`Router::getRoutes()` as if it were a method-keyed map, but getRoutes()
+returns a FLAT list of `['method'=>, 'route'=>]` entries — so it always
+returned false. Harmless while no login route existed (the 503 hint was
+correct anyway), but it meant /admin would 503 forever even after a login
+route was added. Now reads the flat shape correctly, so /admin redirects to
+/admin/login (302) once the route exists.
+
+#### Logout in the admin chrome
+
+The sidebar now shows a CSRF-protected "Sign out" button (pinned to the
+bottom) when auth is enabled and a user is signed in.
+
+#### Getting in after upgrade
+
+```
+php sofy admin:create          # seed an admin user (prompts for email/pass)
+# visit /admin → redirected to /admin/login → sign in
+```
+
+#### Smoke (php -S)
+
+  • GET /admin/login → 200, form has email/password/_token
+  • GET /admin → 302 → /admin/login?next=/admin
+  • GET /admin/database/sql → 302 → login (no longer publicly reachable)
+  • POST /admin/login without CSRF → 419
+  • POST /admin/login with token + bad creds → 401 (503 when DB unreachable)
+
 ## v0.5.1 — 2026-06-03
 
 **`full-install` now sets up the v0.5.0 production performance stack

@@ -11,6 +11,7 @@ declare(strict_types=1);
  */
 
 use Sofy\Admin\Admin;
+use Sofy\Admin\Controllers\AuthController;
 use Sofy\Admin\Controllers\DashboardController;
 use Sofy\Admin\Controllers\DatabaseController;
 use Sofy\Admin\Controllers\MarketplaceController;
@@ -23,6 +24,14 @@ use Sofy\Http\Router;
 use Sofy\View\Icons;
 
 /** @var Router $router */
+
+// Built-in login/logout — registered OUTSIDE the EnsureAdmin group so an
+// unauthenticated user can actually reach the form. EnsureAdmin also
+// whitelists these paths. Override by defining /admin/login in routes/web.php
+// (loaded earlier, so it wins).
+$router->get ('/admin/login',  [AuthController::class, 'showLogin']);
+$router->post('/admin/login',  [AuthController::class, 'login']);
+$router->post('/admin/logout', [AuthController::class, 'logout']);
 
 $router->group(['prefix' => 'admin', 'middleware' => [EnsureAdmin::class]], function (Router $router): void {
     $router->get('/',      [DashboardController::class, 'index']);

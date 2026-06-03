@@ -56,16 +56,14 @@ class EnsureAdmin
     {
         try {
             $router = \Sofy\Core\Application::getInstance()->router();
-            // Router::getRoutes() returns a method-keyed map of arrays of
-            // Route objects, so we need to descend one level before calling
-            // matches(). Check both GET and POST so login forms wired as
-            // either are picked up.
-            $routes = $router->getRoutes();
-            foreach (['GET', 'POST'] as $method) {
-                foreach (($routes[$method] ?? []) as $route) {
-                    if (is_object($route) && method_exists($route, 'matches') && $route->matches($loginUrl)) {
-                        return true;
-                    }
+            // Router::getRoutes() returns a FLAT list of ['method'=>, 'route'=>]
+            // entries — not a method-keyed map. Descend into 'route' before
+            // matching. (Pre-v0.5.2 this iterated the wrong shape and always
+            // returned false; harmless only while no login route existed.)
+            foreach ($router->getRoutes() as $entry) {
+                $route = is_array($entry) ? ($entry['route'] ?? null) : null;
+                if (is_object($route) && method_exists($route, 'matches') && $route->matches($loginUrl)) {
+                    return true;
                 }
             }
         } catch (\Throwable) {

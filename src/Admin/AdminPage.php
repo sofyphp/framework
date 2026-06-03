@@ -109,6 +109,19 @@ class AdminPage
             }
         }
 
+        // Logout — only when auth is enabled and someone is signed in. POST
+        // form (CSRF-protected) styled like a nav item, pinned to the bottom.
+        $signedIn = function_exists('auth') && auth()->check();
+        if ($panel->requireAuth && $signedIn) {
+            $token = function_exists('csrf_token') ? csrf_token() : '';
+            $out .= '<div class="sofy-admin-divider"></div>'
+                . '<form method="POST" action="' . htmlspecialchars($panel->logoutUrl, ENT_QUOTES, 'UTF-8') . '" class="sofy-admin-logout">'
+                . '<input type="hidden" name="_token" value="' . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . '">'
+                . '<button type="submit" class="sofy-admin-item sofy-admin-logout-btn">'
+                . '<span class="sofy-admin-icon">' . Icons::LOCK . '</span>Sign out</button>'
+                . '</form>';
+        }
+
         $out .= '</nav></aside>';
         return $out;
     }
@@ -232,6 +245,8 @@ class AdminPage
             background:rgba(217,119,87,.12);color:var(--accent);font-weight:600;
         }
         [data-theme="dark"] .sofy-admin-item:hover{background:rgba(255,255,255,.04)}
+        .sofy-admin-logout{margin:0}
+        .sofy-admin-logout-btn{width:100%;border:0;background:none;cursor:pointer;font:inherit;text-align:left}
         .sofy-admin-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;opacity:.85}
         .sofy-admin-label{flex:1}
         .sofy-admin-badge{
