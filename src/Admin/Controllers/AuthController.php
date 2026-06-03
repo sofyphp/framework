@@ -64,10 +64,13 @@ class AuthController
 
         try {
             $ok = Auth::attempt(['email' => $email, 'password' => $pass]);
-        } catch (\Throwable) {
-            // DB unreachable / users table missing — don't leak a 500 stack.
+        } catch (\Throwable $e) {
+            // Don't leak a stack to the browser, but DO log the real cause —
+            // a generic "check the database" message hid an actual bug once.
+            error_log('[sofy] admin login failed: ' . $e::class . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
             return new Response(
-                $this->render($next, 'Login is temporarily unavailable. Check the database connection.'),
+                $this->render($next, 'Login is temporarily unavailable — see the server log for details.'),
                 503,
             );
         }

@@ -40,12 +40,22 @@ class Auth
 
         if (!$email || !$password) return false;
 
+        // Builder::first() returns a hydrated Model, not an array — use object
+        // access. (The old $user['password'] form threw "Cannot use object as
+        // array" on every match; it only surfaced once a login form started
+        // calling attempt() in v0.5.2.)
         $user = $model::where('email', $email)->first();
-        if (!$user || !password_verify($password, (string) ($user['password'] ?? ''))) {
+        if ($user === null) {
             return false;
         }
 
-        static::loginById((int) $user['id'], $model);
+        $hash = is_object($user) ? (string) $user->getAttribute('password') : (string) ($user['password'] ?? '');
+        if (!password_verify($password, $hash)) {
+            return false;
+        }
+
+        $id = is_object($user) ? $user->getPrimaryKeyValue() : ($user['id'] ?? 0);
+        static::loginById((int) $id, $model);
         return true;
     }
 

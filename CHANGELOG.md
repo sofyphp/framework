@@ -5,6 +5,33 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.6.1 — 2026-06-03
+
+**Hotfix: admin login always failed with "Login is temporarily unavailable" —
+`Auth::attempt()` used array access on a Model object.**
+
+`Builder::first()` returns a hydrated Model, but `Auth::attempt()` read
+`$user['password']` and `$user['id']` — array access on an object that doesn't
+implement ArrayAccess. PHP throws `Error: Cannot use object of type … as
+array` on every match. `??` doesn't suppress it (that's a fatal, not an
+undefined-key notice). The v0.5.2 AuthController caught the throwable and
+rendered a generic 503 "check the database connection" — which is why a freshly
+`admin:create`d account still couldn't sign in.
+
+The bug predates the login form: nothing called `attempt()` until v0.5.2
+shipped one, so it never surfaced.
+
+Fixed `Auth::attempt()` to use object access (`$user->getAttribute('password')`,
+`$user->getPrimaryKeyValue()`), with an array fallback for callers that pass a
+raw row. Verified end-to-end against SQLite: correct password authenticates,
+wrong password / unknown user return false cleanly, no exception on any path.
+
+Also: AuthController now `error_log()`s the real exception (class + message +
+file:line) instead of swallowing it behind the generic message — so the next
+genuine DB problem is diagnosable from the server log.
+
+Getting in after upgrade: nothing extra — `php sofy admin:create` then sign in.
+
 ## v0.6.0 — 2026-06-03
 
 **New subsystem: a zero-dependency search engine — inverted index + in-memory
