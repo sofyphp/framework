@@ -34,9 +34,21 @@ class AuthController
 
     public function showLogin(Request $request): Response
     {
-        // Already signed in → bounce to the panel.
-        if (function_exists('auth') ? auth()->check() : Auth::check()) {
+        // Use the SAME "really authenticated" test EnsureAdmin uses — load the
+        // user, not just the session flag. If we only checked Auth::check()
+        // (session key present) here while EnsureAdmin checks Auth::user()
+        // (loads the model), a dangling session — e.g. _auth_id present but no
+        // loadable user — makes /admin/login redirect to /admin and /admin
+        // redirect back, an infinite ERR_TOO_MANY_REDIRECTS loop.
+        $user = function_exists('auth') ? auth()->user() : Auth::user();
+        if ($user !== null) {
             return Response::redirect('/admin');
+        }
+
+        // Session says authed but no user loaded → it's stale. Clear it so the
+        // form is reachable instead of bouncing.
+        if (Auth::check()) {
+            Auth::logout();
         }
 
         $next = Url::sameOrigin((string) $request->input('next', ''), '/admin');

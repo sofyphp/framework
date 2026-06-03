@@ -36,6 +36,11 @@ class EnsureAdmin
         $user = function_exists('auth') ? auth()->user() : null;
 
         if ($user === null) {
+            // Clear a dangling session (an _auth_id that no longer resolves to
+            // a user) so we don't ping-pong with the login page.
+            if (function_exists('auth') && auth()->check()) {
+                auth()->logout();
+            }
             // If the host app hasn't registered a login route yet, redirecting
             // to it would just 404. Show a clear setup hint so the operator
             // who just upgraded to v0.4.13 understands what to wire next.

@@ -5,6 +5,31 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.6.2 — 2026-06-03
+
+**Hotfix: ERR_TOO_MANY_REDIRECTS on /admin/login — login page and admin gate
+disagreed on what "authenticated" means.**
+
+`AuthController::showLogin()` redirected to /admin when `Auth::check()` was true
+(session has `_auth_id`), but `EnsureAdmin` decides access with `Auth::user()`
+(actually loads the model). When those disagree — a dangling session whose
+`_auth_id` no longer resolves to a user (deleted row, or an `_auth_id` of 0) —
+you get an infinite bounce: /admin/login → /admin → /admin/login → …
+
+Fixes:
+  • `showLogin()` now uses the same test as the gate: `Auth::user() !== null`.
+    Since it redirects to /admin under exactly the condition EnsureAdmin lets
+    /admin through, the two can no longer disagree — the loop is impossible.
+  • A stale session (check() true but user() null) is now cleared with
+    `Auth::logout()` in both `showLogin()` and `EnsureAdmin` before redirecting,
+    so junk sessions self-heal instead of ping-ponging.
+
+If you hit the loop before upgrading, clear the site's cookies once after
+deploying (the dangling session cookie is what was bouncing).
+
+Verified: /admin/login → 200, /admin → one redirect to login, following
+redirects settles at 200 with num_redirects=1 (no loop).
+
 ## v0.6.1 — 2026-06-03
 
 **Hotfix: admin login always failed with "Login is temporarily unavailable" —
