@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sofy\Admin\Middleware;
 
 use Sofy\Admin\AdminPanel;
+use Sofy\Auth\Auth;
 use Sofy\Http\Request;
 use Sofy\Http\Response;
 
@@ -33,13 +34,17 @@ class EnsureAdmin
             return $next($request);
         }
 
-        $user = function_exists('auth') ? auth()->user() : null;
+        // Use the Auth facade directly — never the auth() helper with a `null`
+        // fallback. This middleware is the security gate; if it can't tell who's
+        // logged in it must not silently treat everyone as anonymous (that was
+        // the cause of the /admin ⇄ /admin/login redirect loop before v0.6.4).
+        $user = Auth::user();
 
         if ($user === null) {
             // Clear a dangling session (an _auth_id that no longer resolves to
             // a user) so we don't ping-pong with the login page.
-            if (function_exists('auth') && auth()->check()) {
-                auth()->logout();
+            if (Auth::check()) {
+                Auth::logout();
             }
             // If the host app hasn't registered a login route yet, redirecting
             // to it would just 404. Show a clear setup hint so the operator

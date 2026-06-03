@@ -38,6 +38,32 @@ if (!function_exists('config')) {
     }
 }
 
+if (!function_exists('auth')) {
+    /**
+     * Auth guard accessor. Returns an object proxying to the Sofy\Auth\Auth
+     * facade, so `auth()->user()`, `auth()->check()`, `auth()->id()`,
+     * `auth()->logout()` all work.
+     *
+     * This helper was missing before v0.6.4 — framework code guarded every
+     * call as `function_exists('auth') ? auth()->user() : <fallback>`, and one
+     * fallback (EnsureAdmin) was `null`, so the admin gate thought NOBODY was
+     * ever authenticated → infinite /admin ⇄ /admin/login redirect loop.
+     */
+    function auth(): object
+    {
+        static $guard = null;
+        return $guard ??= new class {
+            public function check(): bool   { return \Sofy\Auth\Auth::check(); }
+            public function guest(): bool   { return \Sofy\Auth\Auth::guest(); }
+            public function id(): ?int      { return \Sofy\Auth\Auth::id(); }
+            public function user(): mixed   { return \Sofy\Auth\Auth::user(); }
+            public function logout(): void  { \Sofy\Auth\Auth::logout(); }
+            /** @param array<string,mixed> $credentials */
+            public function attempt(array $credentials): bool { return \Sofy\Auth\Auth::attempt($credentials); }
+        };
+    }
+}
+
 if (!function_exists('view')) {
     function view(string $template, array $data = []): Response
     {

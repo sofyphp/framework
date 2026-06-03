@@ -111,7 +111,7 @@ class AdminPage
 
         // Logout — only when auth is enabled and someone is signed in. POST
         // form (CSRF-protected) styled like a nav item, pinned to the bottom.
-        $signedIn = function_exists('auth') && auth()->check();
+        $signedIn = \Sofy\Auth\Auth::check();
         if ($panel->requireAuth && $signedIn) {
             $token = function_exists('csrf_token') ? csrf_token() : '';
             $out .= '<div class="sofy-admin-divider"></div>'

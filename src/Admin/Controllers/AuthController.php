@@ -40,7 +40,7 @@ class AuthController
         // (loads the model), a dangling session — e.g. _auth_id present but no
         // loadable user — makes /admin/login redirect to /admin and /admin
         // redirect back, an infinite ERR_TOO_MANY_REDIRECTS loop.
-        $user = function_exists('auth') ? auth()->user() : Auth::user();
+        $user = Auth::user();
         if ($user !== null) {
             return Response::redirect('/admin');
         }

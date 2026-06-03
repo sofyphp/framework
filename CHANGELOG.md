@@ -5,6 +5,42 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.6.4 — 2026-06-03
+
+**THE redirect loop, root cause: the `auth()` helper never existed.**
+
+v0.6.2 reasoned the loop away assuming `auth()` worked. It didn't — there was
+no `auth()` helper in the framework at all. Every call site guarded it as
+`function_exists('auth') ? auth()->user() : <fallback>`, and the fallbacks
+disagreed:
+
+  • `EnsureAdmin` (the gate) fell back to **`null`** → with no `auth()` helper
+    it treated *everyone* as anonymous and always redirected to /admin/login.
+  • `AuthController::showLogin` fell back to `Auth::user()` (correct) → an
+    authenticated user there redirected to /admin.
+
+So a logged-in user bounced forever: /admin → /admin/login → /admin → …
+ERR_TOO_MANY_REDIRECTS. The login page returning 200 and v0.6.2 being deployed
+were both true and both irrelevant — the gate could never see the session.
+
+Fixes:
+  • **Added the `auth()` helper** (`src/Support/helpers.php`) — returns a guard
+    proxying to the `Auth` facade: `auth()->user()/check()/id()/logout()/
+    attempt()`. It was referenced throughout framework code and docs but never
+    defined.
+  • `EnsureAdmin` now calls `Auth::user()` / `Auth::check()` / `Auth::logout()`
+    **directly** — the security gate must never depend on a helper that might be
+    absent, and must never silently treat everyone as anonymous.
+  • `AuthController` and `AdminPage` likewise use the `Auth` facade directly
+    instead of the `function_exists('auth')` ternary.
+
+Verified over HTTP: /admin/login → 200, /admin → exactly one redirect to the
+login page (num_redirects=1), no loop. `auth()` now resolves and proxies the
+facade.
+
+After deploy: `php sofy update` + restart php-fpm + clear the `sofy_session`
+cookie once. Login then sticks and /admin loads.
+
 ## v0.6.3 — 2026-06-03
 
 **Fix: `full-install` left the optimize caches root-owned, so a later
