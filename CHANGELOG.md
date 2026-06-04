@@ -5,6 +5,67 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.8.0 — 2026-06-04
+
+**New: a `UI::chat` component and a Messenger module — user-to-user messaging
+in the admin (1:1 DMs + group channels), live.**
+
+#### `UI::chat` (framework core)
+
+A reusable chat thread: own/other message bubbles, composer with Enter-to-send
+(Shift+Enter = newline), auto-grow textarea, auto-scroll. Transport-agnostic —
+you give it a `sendUrl` (POST body → message JSON) and a `pollUrl`
+(GET ?after=id → messages JSON). Live updates via polling by default;
+optionally upgrades to WebSocket push. Markup-only — `sofyChat` behaviour +
+styles ship once per page from Page (the DataTable/Combobox pattern).
+
+#### `modules/Messenger`
+
+Self-contained module (PSR-4 `Messenger\`):
+
+  • `chat_channels` / `chat_participants` / `chat_messages` migration
+    (driver-agnostic). DMs use a canonical `dm_key` so a user pair always maps
+    to one channel; groups are named with N participants.
+  • Models `Channel` (directBetween / createGroup / participants), `Participant`
+    (membership, read cursor, unread counts), `Message` (since-id polling).
+  • `MessagesController` under `/admin/messages` (behind EnsureAdmin): inbox +
+    thread (renders `UI::chat`), `send`/`poll` JSON endpoints, start-direct /
+    start-group. Uses the searchable `UI::combobox` to pick a user.
+  • Menu item **Сообщения** with a live unread-count badge.
+  • `config('messenger.ws_url')`, `poll_interval`.
+
+#### Real-time without Redis
+
+Sends + persistence are always HTTP (CSRF + auth). The optional WebSocket layer
+carries only a *bump* signal: after a send the browser tells the channel room
+to refetch, and `Messenger\WebSocket\ChatHandler` relays it to everyone in the
+room — message bodies still travel over HTTP. So instant delivery needs only a
+running `ws:serve` (no Redis bridge), and polling remains the always-on
+fallback that auto-reconnects.
+
+```bash
+php sofy module:install Messenger && php sofy migrate
+# optional realtime:
+php sofy ws:serve --handler="Messenger\WebSocket\ChatHandler"
+# + MESSENGER_WS_URL=wss://host/ws
+```
+
+#### Verified
+
+  • Models on SQLite: DM dedup by `dm_key` (directBetween(7,3) reuses
+    directBetween(3,7)), participants, group creation, `Message::since(after)`,
+    unread counts (own messages excluded; markRead zeroes them).
+  • `UI::chat` renders own/other bubbles, data-send/poll/last attrs, WS mode,
+    nl2br bodies.
+  • HTTP: `/admin/messages` + thread gated (302→login, not 404), `send`
+    CSRF-protected (419), `sofyChat` JS + chat CSS present on every page,
+    module loads (0 failed). All module files lint clean.
+
+#### Docs
+
+`docs/18-messenger.md` — enabling, the polling-vs-WebSocket model, the
+`UI::chat` endpoint contract, and the data model.
+
 ## v0.7.0 — 2026-06-03
 
 **Consolidation release. One tag that rolls up everything since 0.1 — deploy

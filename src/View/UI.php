@@ -25,6 +25,7 @@ use Sofy\View\UI\Badge;
 use Sofy\View\UI\Breadcrumb;
 use Sofy\View\UI\Button;
 use Sofy\View\UI\Card;
+use Sofy\View\UI\Chat;
 use Sofy\View\UI\Combobox;
 use Sofy\View\UI\Code;
 use Sofy\View\UI\Divider;
@@ -487,6 +488,24 @@ class UI
     public static function combobox(string $name, array $options = [], int|string|null $selected = null): Combobox
     {
         return new Combobox($name, $options, $selected);
+    }
+
+    /**
+     * A chat thread (message bubbles + composer) with live updates via polling,
+     * upgradeable to WebSocket push. See Sofy\View\UI\Chat.
+     *
+     * @param list<array{id:int,user_id:int,name:string,body:string,time:string,mine?:bool}> $messages
+     */
+    public static function chat(
+        array $messages,
+        string $sendUrl,
+        string $pollUrl,
+        int $currentUserId,
+        ?string $wsUrl = null,
+        string $room = '',
+        string $placeholder = 'Сообщение…',
+    ): Chat {
+        return new Chat($messages, $sendUrl, $pollUrl, $currentUserId, $wsUrl, $room, $placeholder);
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────

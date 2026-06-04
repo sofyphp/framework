@@ -1,0 +1,20 @@
+{
+    "slug": "messenger",
+    "name": "Messenger",
+    "namespace": "Messenger\\",
+    "version": "1.0.0",
+    "description": "Переписка между пользователями в админке: 1:1 личные сообщения и групповые каналы, живой чат (polling + опциональный WebSocket).",
+    "author": "sofyphp",
+    "homepage": "https://github.com/sofyphp/framework/tree/main/modules/Messenger",
+    "license": "MIT",
+    "requires": { "sofy": "^0.7", "php": "^8.3", "ext": ["pdo"] },
+    "categories": ["communication"],
+    "tags": ["chat", "messaging", "websocket", "admin"],
+    "provides": ["UI::chat"],
+    "dist": {
+        "type": "github-tag",
+        "repo": "sofyphp/framework",
+        "tag": "v0.8.0",
+        "subdir": "modules/Messenger"
+    }
+}

@@ -310,6 +310,19 @@ textarea.sofy-form-ctrl{resize:vertical;min-height:96px}
 .sofy-combo-opt[aria-selected="true"]{font-weight:600}
 .sofy-combo-empty{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 4px);padding:10px 12px;font-size:12.5px;color:var(--muted);background:var(--surf);border:1px solid var(--border);border-radius:10px}
 .sofy-combo:not(.open) .sofy-combo-empty{display:none}
+.sofy-chat{display:flex;flex-direction:column;height:520px;max-height:70vh;border:1px solid var(--border);border-radius:14px;background:var(--surf);overflow:hidden}
+.sofy-chat-log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+.sofy-chat-empty{margin:auto;color:var(--muted);font-size:13px}
+.sofy-chat-msg{max-width:72%;align-self:flex-start;display:flex;flex-direction:column;gap:3px}
+.sofy-chat-msg.mine{align-self:flex-end;align-items:flex-end}
+.sofy-chat-author{font-size:11px;font-weight:700;color:var(--accent);padding:0 4px}
+.sofy-chat-bubble{background:var(--surf2);border:1px solid var(--border);border-radius:14px;padding:9px 13px;font-size:13.5px;line-height:1.45;color:var(--text);word-break:break-word}
+.sofy-chat-msg.mine .sofy-chat-bubble{background:var(--accent);border-color:var(--accent);color:#fff}
+.sofy-chat-time{font-size:10.5px;color:var(--muted);padding:0 4px}
+.sofy-chat-composer{display:flex;gap:10px;align-items:flex-end;padding:12px;border-top:1px solid var(--border);background:var(--bg)}
+.sofy-chat-input{flex:1;resize:none;max-height:140px;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:9px 13px;color:var(--text);font-family:var(--font);font-size:13.5px;outline:none;line-height:1.45}
+.sofy-chat-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.1)}
+.sofy-chat-send{flex-shrink:0}
 .sofy-form-hint{font-size:11px;color:var(--muted);margin-top:4px}
 .sofy-form-err{font-size:11px;color:var(--danger);margin-top:4px}
 .sofy-form-check{display:flex;align-items:center;gap:10px;cursor:pointer}
@@ -1078,6 +1091,74 @@ var sofyCombo=(function(){
         document.querySelectorAll('.sofy-combo.open').forEach(function(b){if(!b.contains(e.target))close(b);});
     });
     return{open:open,filter:filter,pick:pick,key:key};
+})();
+
+/* ── Chat ── */
+var sofyChat=(function(){
+    function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+    function bubble(m,uid){
+        var mine=m.mine!=null?m.mine:(parseInt(m.user_id,10)===uid);
+        var h='<div class="sofy-chat-msg'+(mine?' mine':'')+'" data-id="'+m.id+'">';
+        if(!mine)h+='<div class="sofy-chat-author">'+esc(m.name)+'</div>';
+        h+='<div class="sofy-chat-bubble">'+esc(m.body).replace(/\n/g,'<br>')+'</div>';
+        h+='<div class="sofy-chat-time">'+esc(m.time)+'</div></div>';
+        return h;
+    }
+    function atBottom(log){return log.scrollHeight-log.scrollTop-log.clientHeight<60;}
+    function scroll(log){log.scrollTop=log.scrollHeight;}
+    function append(box,items){
+        var log=box.querySelector('.sofy-chat-log');var uid=parseInt(box.dataset.uid,10);
+        var empty=log.querySelector('.sofy-chat-empty');if(empty&&items.length)empty.remove();
+        var stick=atBottom(log);
+        items.forEach(function(m){
+            if(log.querySelector('[data-id="'+m.id+'"]'))return;
+            log.insertAdjacentHTML('beforeend',bubble(m,uid));
+            if(parseInt(m.id,10)>parseInt(box.dataset.last,10))box.dataset.last=m.id;
+        });
+        if(stick)scroll(log);
+    }
+    function poll(box){
+        fetch(box.dataset.poll+(box.dataset.poll.indexOf('?')>-1?'&':'?')+'after='+box.dataset.last,
+              {headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){return r.json();})
+            .then(function(d){if(d&&d.messages)append(box,d.messages);}).catch(function(){});
+    }
+    function send(e,form){
+        e.preventDefault();
+        var box=form.closest('.sofy-chat');var ta=form.querySelector('.sofy-chat-input');
+        var body=ta.value.trim();if(!body)return false;
+        ta.value='';ta.style.height='auto';
+        var fd=new FormData();fd.append('body',body);fd.append('_token',box.dataset.token);
+        fetch(box.dataset.send,{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){return r.json();})
+            .then(function(d){
+                if(d&&d.message)append(box,[d.message]);
+                else poll(box);
+                if(box._ws&&box._ws.readyState===1)box._ws.send(JSON.stringify({action:'bump',room:box.dataset.room}));
+            }).catch(function(){poll(box);});
+        return false;
+    }
+    function key(e,ta){
+        ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,140)+'px';
+        if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ta.form.requestSubmit?ta.form.requestSubmit():sofyChat.send(e,ta.form);}
+    }
+    function connectWs(box){
+        if(!box.dataset.ws||!('WebSocket'in window))return;
+        try{
+            var ws=new WebSocket(box.dataset.ws);box._ws=ws;
+            ws.onopen=function(){ws.send(JSON.stringify({action:'join',room:box.dataset.room}));};
+            ws.onmessage=function(){poll(box);};
+            ws.onclose=function(){box._ws=null;setTimeout(function(){connectWs(box);},5000);};
+        }catch(e){}
+    }
+    function init(box){
+        scroll(box.querySelector('.sofy-chat-log'));
+        connectWs(box);
+        var iv=parseInt(box.dataset.interval,10)||4000;
+        box._poll=setInterval(function(){poll(box);},iv);
+    }
+    document.querySelectorAll('.sofy-chat').forEach(init);
+    return{send:send,key:key,poll:poll};
 })();
 </script>
 JS;
