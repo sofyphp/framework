@@ -1,133 +1,132 @@
-# Sofy
+<div align="center">
 
-**Minimal, dependency-free PHP 8.3 MVC framework.** No Composer runtime packages —
-just PHP and your code. Ships a pure-PHP UI component system that renders styled
-HTML (no templates, no build step) with built-in transitions and a soft visual theme.
+# So<span>fy</span>
 
-## Requirements
+### The batteries-included PHP framework with **zero runtime dependencies**
 
-- PHP **8.3+**
-- Extensions: `pdo`, `curl`, `mbstring`, `openssl`, `fileinfo`, `simplexml`
-- Optional: `redis` (Redis cache/session), `pcntl` (graceful WebSocket shutdown)
+Build the whole app — UI, admin, auth, search, real-time chat, notifications —
+with nothing but PHP. No node, no templates, no build step, no vendor bloat.
 
-## Features
+[![PHP](https://img.shields.io/badge/PHP-8.3%2B-777BB4?logo=php&logoColor=white)](https://php.net)
+[![License](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/runtime%20deps-0-ff6b3d)](composer.json)
+[![Tests](https://img.shields.io/badge/tests-PHPUnit-3b82f6)](tests)
 
-- **Routing** — expressive routes, route groups, middleware, named routes, resource routes
-- **Container** — autowiring DI container with reflection caching
-- **ORM** — ActiveRecord models, query builder, relations, eager loading, migrations, seeders, factories
-- **Auth & security** — auth, gates/policies, roles, API tokens, CSRF, AES‑256 encryption, hashing
-- **Validation** — rule-based validator with form requests
-- **Queue** — sync / database drivers with a worker
-- **Events & broadcasting** — dispatcher, broadcast drivers, built-in WebSocket server
-- **Cache** — file / redis / array drivers
-- **Mail & notifications** — mailer, mailables, mail / database / broadcast channels
-- **Storage** — local filesystem and S3 drivers
-- **UI components** — 50+ pure-PHP components (cards, tables, forms, charts, modals, …) with transitions, dark/light themes and i18n
-- **Icon library** — `Sofy\View\Icons`: 107 Feather-style SVGs, `UI::icon('home', size: 20)`
-- **Admin panel** — built-in CMS-like `/admin` with module-extensible menu, widgets, database browser, SQL console, system info and one-click framework updates
-- **REPL** — `php sofy repl` for an interactive PHP shell with full framework context
-- **Modules** — drop a folder in `modules/` and it auto-registers routes, services and commands
-- **Console** — `sofy` CLI with scheduler support
-- **Testing** — test case + HTTP/queue/event/mail/storage fakes
+**English** · [Русский](README.ru.md) · [Docs](docs/) · live UI demo at `/ui-demo`
 
-## Installation
+</div>
 
-Two install paths — local development and a turnkey production wizard.
+---
 
-### Development (local)
+## Why Sofy?
 
-```bash
-# Create a new project (published on Packagist)
-composer create-project sofyphp/framework my-app
+Most frameworks hand you a router and a stack of Composer packages, then send you
+to npm for the UI. **Sofy ships the whole product** — and renders styled HTML
+straight from PHP.
 
-# …or clone and install
-git clone https://github.com/sofyphp/framework my-app
-cd my-app
-composer install
-
-cp .env.example .env
-php sofy key:generate
-php sofy migrate
-php sofy admin:create               # interactive admin user
-php -S localhost:8000 -t public
+```php
+return UI::page('Dashboard')
+    ->add(
+        UI::grid(3, [
+            UI::stat('Revenue', '$42k')->color('#10b981'),
+            UI::stat('Users',    1240, '+5%'),
+            UI::stat('Active',    983, '+2%'),
+        ]),
+        UI::card('Welcome', UI::alert('No templates. No build step. Just PHP.', 'info')),
+    )
+    ->response();
 ```
 
-Open <http://localhost:8000>, then visit `/admin`.
+No `.blade`, no webpack, no `package.json`. The component renders themed,
+responsive HTML with transitions, dark/light mode and i18n built in.
 
-### Production (`full-install` wizard)
+## What's in the box
 
-Sofy ships a single-command server installer for fresh Linux boxes (Ubuntu /
-Debian-family):
-
-```bash
-sudo php sofy full-install                    # interactive wizard (recommended)
-sudo php sofy full-install --no-interaction   # silent install with defaults
-```
-
-The wizard walks through six steps — domain, PHP version (8.3 / 8.4 / 8.5),
-web server (**Caddy** / Nginx / Apache), SSL (auto via Caddy + Let's Encrypt
-or Certbot for Nginx/Apache), database driver (**MySQL** / PostgreSQL /
-SQLite) with credentials, and finally cron + Supervisor + migrations. It
-prints a summary and asks for confirmation before touching anything.
-
-What it does:
-
-- Installs PHP (via Ondřej PPA when the requested version isn't in the
-  distro's repos), Composer, and all required extensions
-- Installs and configures the chosen web server with a correct vhost +
-  document root + PHP-FPM unix socket
-- For Caddy: HTTPS works out of the box (auto-renewing Let's Encrypt
-  certificate, or a self-signed cert when domain is `localhost`/IP)
-- For Nginx/Apache: installs Certbot and obtains a Let's Encrypt cert
-  (skipped if the domain isn't a real public hostname)
-- Creates the database + user with a generated password and writes the
-  credentials to `.env`
-- Sets correct ownership/permissions on `storage/` and `bootstrap/cache/`
-- Installs a cron entry for `php sofy schedule:run` (every minute) and a
-  Supervisor program that keeps `php sofy queue:work` alive
-- Runs `php sofy migrate`
-
-Defaults used by `--no-interaction`: `domain=localhost`, `php=8.5`,
-`webserver=caddy`, `ssl=auto`, `db=mysql`, `db_name=sofy`, `db_user=sofy`,
-auto-generated password, cron+supervisor+migrate all on.
-
-Run as `root` (or with `sudo`) — it touches `/etc/`, `/var/`, package
-manager and systemd. Linux-only.
+| | |
+|---|---|
+| 🧩 **46+ UI components** | Cards, tables, forms, charts, modals, drawers, tabs… pure PHP, theme-aware, `->color()` any of them |
+| 🛡️ **Secure by default** | Auth-by-default `/admin`, CSRF, secure session cookies, security headers, AES-256, hashing — out of the box |
+| 🗄️ **ORM + migrations** | ActiveRecord, query builder, relations, eager loading, seeders, factories |
+| 🔎 **Search engine** | Zero-dependency inverted index, `Searchable` models, a searchable `UI::combobox` |
+| 💬 **Real-time messaging** | In-admin user-to-user chat (`UI::chat`) — 1:1 & group channels, WebSocket or polling |
+| 🔔 **Browser notifications** | Desktop notifications **with sound** (synthesized, zero-asset) from any `$user->notify()` |
+| 🎛️ **Admin panel** | `/admin` with menu, widgets, DB browser, SQL console, one-click updates |
+| ⚡ **Fast in production** | opcache preload, route/config cache, a UI asset compiler — `php sofy optimize` |
+| 🚀 **One-command deploy** | `sudo php sofy full-install` provisions a whole Linux box; services run under systemd |
+| 🧰 **Rich CLI** | Scaffolding, migrations, queue, scheduler, REPL, service management |
+| 📦 **Modules & marketplace** | Drop a folder in `modules/`, install from a catalog |
+| ✅ **Tested** | PHPUnit core suite — `composer test` |
 
 ## Quick start
 
+```bash
+composer create-project sofyphp/framework my-app   # or: git clone … && composer install
+cd my-app
+cp .env.example .env
+php sofy key:generate
+php sofy migrate
+php sofy admin:create        # interactive admin user
+php -S localhost:8000 -t public
+```
+
+Open <http://localhost:8000> — visit `/admin` (login at `/admin/login`),
+the live component reference at `/ui-demo`, and the docs at `/docs`.
+
 ```php
 // routes/web.php
-use Sofy\Http\Request;
-use Sofy\Http\Response;
-use Sofy\View\UI;
-
-$router->get('/hello/{name}', function (Request $req, string $name): Response {
-    return UI::page("Hello, $name!")
-        ->nav('MyApp', ['/' => 'Home'])
-        ->add(
-            UI::hero("Hello, $name!", 'Welcome to Sofy.')
-                ->action(UI::button('Get started', '/docs', 'primary')),
-            UI::grid(3, [
-                UI::stat('Users',  1240, '+5%'),
-                UI::stat('Active',  983, '+2%'),
-                UI::stat('New',      42, '+12%'),
-            ]),
-            UI::card('Tip',
-                UI::raw('Use ' . UI::icon('zap', size: 14) . ' <code>UI::icon()</code> for theme-aware SVG glyphs.'),
-            ),
-        )
-        ->response();
-});
+$router->get('/hello/{name}', fn(Request $r, string $name): Response =>
+    UI::page("Hello, $name!")
+        ->add(UI::hero("Hello, $name!", 'Welcome to Sofy.')
+            ->action(UI::button('Get started', '/docs', 'primary')))
+        ->response()
+);
 ```
+
+## Production in one command
+
+```bash
+sudo php sofy full-install        # interactive: domain, PHP, web server, SSL, DB, services
+```
+
+The wizard installs PHP + extensions, your web server (**Caddy** / Nginx /
+Apache) with HTTPS, the database, sets permissions, runs migrations, and brings
+up **background services under systemd** — queue worker, WebSocket server and
+Redis — so the box comes up fully running. Add or manage them anytime:
+
+```bash
+sudo php sofy service:install all   # redis + ws + queue + scheduler
+php sofy service:status
+```
+
+Then squeeze out the throughput:
+
+```bash
+php sofy optimize     # route + config cache + opcache preload
+php sofy ui:build      # extract CSS/JS into cached static assets
+```
+
+## Requirements
+
+- **PHP 8.3+** · extensions: `pdo`, `curl`, `mbstring`, `openssl`, `fileinfo`, `simplexml`
+- Optional: `redis` (cache/session/broadcast), `pcntl` (WebSocket graceful shutdown)
+- Production installer: Linux + root
 
 ## Documentation
 
-Full documentation lives in [`docs/`](docs/) and is browsable in-app at `/docs`.
-A live UI component reference is available at `/ui-demo`. Release notes live in
-[`CHANGELOG.md`](CHANGELOG.md) and are surfaced inside the admin at
-`/admin/system/update`.
+Full docs in [`docs/`](docs/) (browsable in-app at `/docs`):
+
+[Getting started](docs/01-getting-started.md) ·
+[Routing](docs/02-routing.md) ·
+[Views & UI](docs/04-views.md) ·
+[Database](docs/05-database.md) ·
+[Auth](docs/06-auth.md) ·
+[Performance](docs/16-performance.md) ·
+[Search](docs/17-search.md) ·
+[Messenger](docs/18-messenger.md) ·
+[Notifications](docs/19-notifications.md)
+
+Release notes: [`CHANGELOG.md`](CHANGELOG.md) (also at `/admin/system/update`).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — © Sofy contributors.
