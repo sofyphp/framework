@@ -131,6 +131,18 @@ class Page extends Component
             ? '<style>' . $this->extraCss . '</style>'
             : '';
 
+        // Compiled assets (php sofy ui:build) → cached external <link>/<script>;
+        // otherwise inline the full design system (works straight from PHP, no
+        // build step). Per-page ->css() and the pre-paint theme script always
+        // stay inline.
+        $assets  = self::compiledAssets();
+        $cssHead = $assets !== null
+            ? '<link rel="stylesheet" href="' . htmlspecialchars($assets['css'], ENT_QUOTES, 'UTF-8') . '">'
+            : '<style>' . self::cssSource() . '</style>';
+        $jsFoot  = $assets !== null
+            ? '<script src="' . htmlspecialchars($assets['js'], ENT_QUOTES, 'UTF-8') . '" defer></script>'
+            : self::jsTag();
+
         return '<!DOCTYPE html>'
             . '<html lang="' . htmlspecialchars(Lang::getLocale(), ENT_QUOTES, 'UTF-8') . '">'
             . '<head>'
@@ -138,7 +150,7 @@ class Page extends Component
             . '<meta charset="UTF-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>' . htmlspecialchars($this->title, ENT_QUOTES, 'UTF-8') . '</title>'
-            . '<style>' . $this->getCss() . '</style>'
+            . $cssHead
             . $extra
             . $htmxScript
             . '</head>'
@@ -152,14 +164,64 @@ class Page extends Component
             . '</main>'
             . $footer
             . '</div>'
-            . $this->getJs()
+            . $jsFoot
             . '</body>'
             . '</html>';
     }
 
+    /**
+     * The raw component JS without the <script> wrapper — what ui:build writes
+     * to the cached .js file.
+     */
+    public static function jsSource(): string
+    {
+        $raw = trim(self::jsTag());
+        $raw = preg_replace('#^<script>#', '', $raw) ?? $raw;
+        $raw = preg_replace('#</script>$#', '', $raw) ?? $raw;
+        return trim($raw);
+    }
+
+    /**
+     * Returns ['css' => url, 'js' => url] when compiled assets are available
+     * (bootstrap/cache/ui-manifest.php exists), or null to inline. Cached per
+     * process. Set config('ui.inline') = true to force inline even when built.
+     */
+    private static ?array $assetCache = null;
+    private static bool $assetResolved = false;
+
+    public static function compiledAssets(): ?array
+    {
+        if (self::$assetResolved) {
+            return self::$assetCache;
+        }
+        self::$assetResolved = true;
+
+        try {
+            if (function_exists('config') && config('ui.inline', false)) {
+                return self::$assetCache = null;
+            }
+        } catch (\Throwable) {
+            // pre-boot (tests/CLI) — fall through to manifest detection
+        }
+
+        $base = function_exists('base_path') ? base_path() : (string) getcwd();
+        $file = $base . '/bootstrap/cache/ui-manifest.php';
+        if (is_file($file)) {
+            $m = require $file;
+            if (is_array($m) && isset($m['css'], $m['js'])) {
+                self::$assetCache = ['css' => (string) $m['css'], 'js' => (string) $m['js']];
+            }
+        }
+        return self::$assetCache;
+    }
+
     // ── CSS ───────────────────────────────────────────────────────────────────
 
-    private function getCss(): string
+    /**
+     * The full design-system CSS, without the <style> wrapper. Public + static
+     * so `php sofy ui:build` can extract it into a cached static file.
+     */
+    public static function cssSource(): string
     {
         return <<<'CSS'
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -848,7 +910,11 @@ CSS;
 
     // ── JS (tabs only, ~5 lines) ──────────────────────────────────────────────
 
-    private function getJs(): string
+    /**
+     * The component JS wrapped in a &lt;script&gt; tag, for inline use.
+     * `php sofy ui:build` extracts the raw body (jsSource) into a cached file.
+     */
+    public static function jsTag(): string
     {
         return <<<'JS'
 <script>

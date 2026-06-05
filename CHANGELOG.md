@@ -44,6 +44,31 @@ Verified: hex/keyword/rgb()/var() all render `--c`; no color → no style
 attribute; injection + XSS rejected; pages render with the color-mix rules
 present, no fatals, lint clean.
 
+---
+
+**Also in 0.10 — UI asset compiler (`php sofy ui:build`).**
+
+Every page was inlining the entire design system — ~57 KB CSS + ~23 KB JS —
+into every HTML response, re-sent and re-parsed each request, never cached.
+
+  • `php sofy ui:build` extracts `Page::cssSource()` + `Page::jsSource()` into
+    hashed static files `public/assets/sofy.<hash>.css|js` (CSS minified) and
+    writes `bootstrap/cache/ui-manifest.php`.
+  • `Page::render()` is manifest-aware: with compiled assets it emits cached
+    `<link>` / `<script src defer>`; without them it inlines exactly as before.
+    So **rendering straight from PHP still works with zero build step** — the
+    compiler is opt-in.
+  • Dev choice: do nothing (inline), `php sofy ui:build` (compiled, cached),
+    `php sofy ui:clear` to revert, or `UI_INLINE=true` / `config('ui.inline')`
+    to force inline even when built.
+  • The hashed filenames bust browser caches on rebuild; build artifacts are
+    gitignored.
+
+Result: pages shed ~80 KB inline each, and the browser downloads the CSS/JS
+once and reuses it across every page. Verified: /ui-demo 176 KB → 97 KB inline
+HTML after build, static assets served 200, `ui:clear` reverts to inline, no
+fatals, lint clean. (No version bump — staying on 0.10.)
+
 ## v0.9.1 — 2026-06-05
 
 **Refactor: the Messenger conversation screen is built from UI components, not

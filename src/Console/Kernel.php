@@ -47,6 +47,8 @@ use Sofy\Console\Commands\OptimizeCommand;
 use Sofy\Console\Commands\OptimizeClearCommand;
 use Sofy\Console\Commands\SearchImportCommand;
 use Sofy\Console\Commands\SearchFlushCommand;
+use Sofy\Console\Commands\UiBuildCommand;
+use Sofy\Console\Commands\UiClearCommand;
 use Sofy\Console\Commands\MakePolicyCommand;
 use Sofy\Console\Commands\MakeNotificationCommand;
 use Sofy\Console\Commands\MakeTestCommand;
@@ -114,6 +116,8 @@ class Kernel
         $this->register(OptimizeClearCommand::class);
         $this->register(SearchImportCommand::class);
         $this->register(SearchFlushCommand::class);
+        $this->register(UiBuildCommand::class);
+        $this->register(UiClearCommand::class);
     }
 
     /** Регистрирует класс команды. */
