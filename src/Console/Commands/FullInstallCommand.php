@@ -80,18 +80,19 @@ class FullInstallCommand extends Command
         $this->stepHeader(6, $total, 'Additional Components');
         $cron       = $this->confirm('Setup cron for scheduler (schedule:run every minute)?', true);
         $supervisor = $this->confirm('Install Supervisor and setup queue workers?', true);
+        $services   = $this->confirm('Install background services as systemd (Redis + WebSocket + queue, auto-start on boot)?', true);
         $migrate    = $this->confirm('Run database migrations after install?', true);
         $optimize   = $this->confirm('Optimize for production (opcache preload + JIT + route/config cache)?', true);
 
         // Summary
         $this->line();
-        $this->printSummaryBox($domain, $php, $webserver, $ssl, $email, $db, $db_name, $db_user, $cron, $supervisor, $migrate, $optimize);
+        $this->printSummaryBox($domain, $php, $webserver, $ssl, $email, $db, $db_name, $db_user, $cron, $supervisor, $migrate, $optimize, $services);
 
         if (!$this->confirm('Proceed with installation?', true)) {
             return null;
         }
 
-        return compact('domain', 'php', 'webserver', 'ssl', 'email', 'db', 'db_name', 'db_user', 'db_pass', 'cron', 'supervisor', 'migrate', 'optimize');
+        return compact('domain', 'php', 'webserver', 'ssl', 'email', 'db', 'db_name', 'db_user', 'db_pass', 'cron', 'supervisor', 'services', 'migrate', 'optimize');
     }
 
     /**
@@ -201,6 +202,10 @@ class FullInstallCommand extends Command
 
         if ($cfg['supervisor']) {
             $steps['Configuring Supervisor'] = fn() => $this->configureSupervisor();
+        }
+
+        if ($cfg['services'] ?? false) {
+            $steps['Installing background services'] = fn() => $this->installServices();
         }
 
         if ($cfg['migrate']) {
@@ -673,6 +678,74 @@ class FullInstallCommand extends Command
         return true;
     }
 
+    // ── Step: background services (systemd) ───────────────────────────────────
+
+    /**
+     * Install Redis + a systemd unit for the queue worker and (if a WebSocket
+     * handler is configured) the ws:serve process — so they start on boot and
+     * auto-restart. Equivalent to `php sofy service:install`, inlined here so a
+     * fresh box comes up fully running.
+     */
+    private function installServices(): bool
+    {
+        $php  = trim((string) shell_exec('command -v php')) ?: '/usr/bin/php';
+        $sofy = base_path('sofy');
+        $cwd  = base_path();
+        $logs = base_path('storage/logs');
+        $user = 'www-data';
+
+        // Redis package.
+        $this->exec('DEBIAN_FRONTEND=noninteractive apt-get install -y redis-server 2>/dev/null | tail -2 '
+            . '|| dnf install -y redis 2>/dev/null | tail -2 || true');
+        $this->exec('systemctl enable --now redis-server 2>/dev/null || systemctl enable --now redis 2>/dev/null || true');
+        $this->info('Redis installed (set CACHE_DRIVER/SESSION_DRIVER=redis in .env to use it).');
+
+        // Queue worker service.
+        $this->writeUnit('sofy-queue', "Sofy queue worker", "$php $sofy queue:work --sleep=3", $user, $cwd, $logs);
+
+        // WebSocket server — only if a handler is configured (WS_HANDLER in .env
+        // or a module set it), otherwise the unit would crash-loop.
+        $wsHandler = (string) (function_exists('env') ? env('WS_HANDLER', '') : ($_ENV['WS_HANDLER'] ?? ''));
+        if ($wsHandler !== '') {
+            $this->writeUnit('sofy-ws', 'Sofy WebSocket server', "$php $sofy ws:serve", $user, $cwd, $logs);
+        } else {
+            $this->comment('  WebSocket service skipped — set WS_HANDLER in .env then run: php sofy service:install ws');
+        }
+
+        $this->exec('systemctl daemon-reload');
+        $this->exec('systemctl enable --now sofy-queue.service 2>&1 | tail -1');
+        if ($wsHandler !== '') {
+            $this->exec('systemctl enable --now sofy-ws.service 2>&1 | tail -1');
+        }
+        $this->info('Background services installed (php sofy service:status to check).');
+        return true;
+    }
+
+    private function writeUnit(string $unit, string $desc, string $execStart, string $user, string $cwd, string $logs): void
+    {
+        $conf = <<<UNIT
+        [Unit]
+        Description=$desc
+        After=network.target
+
+        [Service]
+        Type=simple
+        User=$user
+        WorkingDirectory=$cwd
+        ExecStart=$execStart
+        Restart=always
+        RestartSec=3
+        StandardOutput=append:$logs/$unit.log
+        StandardError=append:$logs/$unit.log
+
+        [Install]
+        WantedBy=multi-user.target
+        UNIT;
+
+        file_put_contents("/etc/systemd/system/$unit.service", $conf);
+        $this->info("Service unit written → /etc/systemd/system/$unit.service");
+    }
+
     // ── Step: migrate ─────────────────────────────────────────────────────────
 
     private function runMigrations(): bool
@@ -864,7 +937,7 @@ class FullInstallCommand extends Command
         string $domain, string $php, string $webserver,
         bool $ssl, string $email,
         string $db, string $db_name, string $db_user,
-        bool $cron, bool $supervisor, bool $migrate, bool $optimize = true,
+        bool $cron, bool $supervisor, bool $migrate, bool $optimize = true, bool $services = false,
     ): void {
         $yes = "\033[32myes\033[0m";
         $no  = "\033[31mno\033[0m";
@@ -894,6 +967,7 @@ class FullInstallCommand extends Command
         }
         $this->line("  │  Cron        : " . ($cron       ? $yes : $no));
         $this->line("  │  Supervisor  : " . ($supervisor ? $yes : $no));
+        $this->line("  │  Services    : " . ($services   ? $yes : $no) . "  (redis + ws + queue)");
         $this->line("  │  Migrations  : " . ($migrate    ? $yes : $no));
         $this->line("  │  Optimize    : " . ($optimize   ? $yes : $no));
         $this->line('  └─────────────────────────────────────────┘');

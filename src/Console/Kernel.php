@@ -49,6 +49,9 @@ use Sofy\Console\Commands\SearchImportCommand;
 use Sofy\Console\Commands\SearchFlushCommand;
 use Sofy\Console\Commands\UiBuildCommand;
 use Sofy\Console\Commands\UiClearCommand;
+use Sofy\Console\Commands\ServiceInstallCommand;
+use Sofy\Console\Commands\ServiceStatusCommand;
+use Sofy\Console\Commands\ServiceRemoveCommand;
 use Sofy\Console\Commands\MakePolicyCommand;
 use Sofy\Console\Commands\MakeNotificationCommand;
 use Sofy\Console\Commands\MakeTestCommand;
@@ -118,6 +121,9 @@ class Kernel
         $this->register(SearchFlushCommand::class);
         $this->register(UiBuildCommand::class);
         $this->register(UiClearCommand::class);
+        $this->register(ServiceInstallCommand::class);
+        $this->register(ServiceStatusCommand::class);
+        $this->register(ServiceRemoveCommand::class);
     }
 
     /** Регистрирует класс команды. */

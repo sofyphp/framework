@@ -1059,6 +1059,54 @@ HTML,
     ]);
 };
 
+// ── What's new (0.6–0.10) ─────────────────────────────────────────────────────
+
+$whatsNewTab = static function (): string {
+    $products = ['1' => 'SKU-001 — Wireless Router', '2' => 'SKU-002 — Ethernet Cable', '3' => 'SKU-003 — Network Switch'];
+
+    $messages = [
+        ['id' => 1, 'user_id' => 1, 'name' => 'Алиса', 'body' => 'Привет! Глянь новый компонент чата.', 'time' => '12:00', 'mine' => false],
+        ['id' => 2, 'user_id' => 9, 'name' => 'Вы',    'body' => 'Огонь — и со звуком уведомления!',     'time' => '12:01', 'mine' => true],
+    ];
+
+    return implode('', [
+        UI::heading('Цвет компонента — ->color()', 3),
+        UI::grid(1, [UI::raw('<div class="sofy-btn-group">'
+            . UI::button('Brand',  '#')->color('#7c5cff')
+            . UI::button('Mint',   '#')->color('#10b981')
+            . UI::button('Crimson','#')->color('crimson')
+            . UI::button('Ghost',  '#', 'ghost')->color('#7c5cff')
+            . '</div>')]),
+        UI::raw('<div style="margin:10px 0">'
+            . UI::badge('VIP')->color('#7c5cff')
+            . ' ' . UI::badge('NEW')->color('#10b981')
+            . ' ' . UI::tag('php')->color('#0a7')
+            . ' ' . UI::tag('websocket')->color('#3b82f6') . '</div>'),
+        UI::progress(72, 'Загрузка')->color('#7c5cff'),
+        UI::alert('Любому компоненту можно задать цвет: hex, rgb(), var(--x) или имя. Значение санитизируется.', 'info')->color('#7c5cff'),
+
+        UI::divider(),
+        UI::heading('Searchable select — UI::combobox', 3),
+        UI::form('#', 'POST')->combobox('Товар', 'product_id', $products, placeholder: 'Начните печатать…'),
+
+        UI::divider(),
+        UI::heading('Чат — UI::chat + UI::chatList', 3),
+        UI::sidebarLayout(
+            UI::card('Диалоги', UI::chatList([
+                ['title' => 'Алиса', 'preview' => 'Привет! Глянь…', 'unread' => 2, 'href' => '#', 'active' => true],
+                ['title' => 'Команда', 'preview' => 'Готово ✓', 'unread' => 0, 'href' => '#'],
+            ])),
+            UI::chat($messages, sendUrl: '#', pollUrl: '#', currentUserId: 9),
+            width: '240px',
+        ),
+
+        UI::divider(),
+        UI::heading('Браузерные уведомления со звуком', 3),
+        UI::alert('Звук синтезируется через WebAudio — без аудио-файлов. Нажми кнопку:', 'info'),
+        UI::raw('<button class="sofy-btn sofy-btn-primary" onclick="sofyNotify.show({title:\'Sofy\',body:\'Тестовое уведомление со звуком\'})">🔔 Уведомление + звук</button>'),
+    ]);
+};
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 echo UI::page(__('ui.demo.title'))
@@ -1066,25 +1114,26 @@ echo UI::page(__('ui.demo.title'))
     ->themeToggle()
     ->localeSwitcher()
     ->header(__('ui.demo.title'),
-        UI::button('Source', 'https://github.com', 'ghost', 'sm')
+        UI::button('GitHub', 'https://github.com/sofyphp/framework', 'ghost', 'sm')
     )
     ->add(
         UI::alert(__('ui.demo.subtitle'), 'info'),
 
         UI::hero(__('ui.demo.hero_title'), __('ui.demo.hero_sub'))
             ->action(
-                UI::button(__('ui.demo.btn_get_started'), '#', 'primary', 'lg'),
-                UI::button('GitHub', '#', 'ghost', 'lg'),
+                UI::button(__('ui.demo.btn_get_started'), '/docs', 'primary', 'lg'),
+                UI::button('GitHub', 'https://github.com/sofyphp/framework', 'ghost', 'lg'),
             ),
 
         UI::grid(4, [
-            UI::stat(__('ui.demo.stat_comps'), '43+',  null, __('ui.demo.stat_comps_desc')),
+            UI::stat(__('ui.demo.stat_comps'), '46+',  null, __('ui.demo.stat_comps_desc')),
             UI::stat(__('ui.demo.stat_forms'), '12',   null, __('ui.demo.stat_forms_desc')),
             UI::stat(__('ui.demo.stat_deps'),  '0',    null, __('ui.demo.stat_deps_desc')),
             UI::stat(__('ui.demo.stat_php'),   '8.3+', null, __('ui.demo.stat_php_desc')),
         ]),
 
         UI::tabs([
+            '✨ Новое'                   => $whatsNewTab(),
             __('ui.demo.tab_buttons')   => $buttonsTab(),
             __('ui.demo.tab_badges')    => $badgesTab(),
             __('ui.demo.tab_tags')      => $tagsTab(),

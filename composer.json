@@ -18,7 +18,6 @@
     "autoload": {
         "psr-4": {
             "Sofy\\": "src/",
-            "App\\": "app/",
             "Main\\": "Main/",
             "Blog\\": "modules/Blog/",
             "Demo\\": "modules/Demo/",
