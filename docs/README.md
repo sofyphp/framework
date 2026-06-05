@@ -20,7 +20,13 @@ Sofy — минималистичный PHP 8.3 MVC-фреймворк без с
 | 12 | [Консоль](12-console.md) | CLI, все команды, REPL, создание своих |
 | 13 | [Модули](13-modules.md) | Модульная архитектура, Module, ModuleLoader |
 | 14 | [Хранилище и утилиты](14-advanced.md) | Storage, HTTP-клиент, валидация, утилиты |
-| 15 | [Админ-панель](15-admin.md) | `/admin`, меню, виджеты, БД-браузер, апдейтер |
+| 15 | [Админ-панель](15-admin.md) | `/admin`, логин, меню, виджеты, БД-браузер, апдейтер |
+| 16 | [Производительность](16-performance.md) | opcache preload, route/config cache, `php sofy optimize`, UI-компилятор |
+| 17 | [Поиск](17-search.md) | Движок поиска, инвертированный индекс, `Searchable`, `UI::combobox` |
+| 18 | [Мессенджер](18-messenger.md) | Переписка в админке, `UI::chat`, 1:1 и групповые каналы, WebSocket |
+| 19 | [Уведомления](19-notifications.md) | Браузерные desktop-уведомления со звуком, `sofyNotify`, лента |
+
+> Спецификация модуля маркетплейса — [sofy-module-spec.md](sofy-module-spec.md).
 
 ## Быстрый старт
 
@@ -45,9 +51,23 @@ php sofy admin:create
 
 # Встроенный PHP-сервер
 php -S localhost:8000 -t public
+
+# Прогнать тесты ядра
+composer test
 ```
 
-Открой <http://localhost:8000> и зайди в `/admin`.
+Открой <http://localhost:8000> и зайди в `/admin` (логин — `/admin/login`).
+
+**Для продакшена** — скомпилируй кэши и ассеты:
+
+```bash
+php sofy optimize     # route + config cache + opcache preload-скрипт
+php sofy ui:build      # вынести CSS/JS в кэшируемые статические файлы
+```
+
+## Исходники
+
+GitHub: <https://github.com/sofyphp/framework>
 
 ## Основные принципы
 
@@ -55,6 +75,7 @@ php -S localhost:8000 -t public
 - **Пространство имён приложения** — `Main\` (папка `Main/`)
 - **Конфиг** — файлы `config/*.php`, переменные окружения `.env`
 - **PHP 8.3+** — readonly, match, named arguments, fibers
+- **Тесты** — `composer test` (PHPUnit 11, in-memory SQLite)
 
 ## Релизы
 

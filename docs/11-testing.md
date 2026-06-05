@@ -2,6 +2,36 @@
 
 Sofy поставляется с базовым классом `TestCase` поверх PHPUnit, HTTP-хелперами и Fakes для изоляции сторонних систем.
 
+## Запуск
+
+```bash
+composer test            # = phpunit --no-coverage
+vendor/bin/phpunit       # напрямую
+```
+
+Конфиг — `phpunit.xml` (PHPUnit 11), бутстрап — `tests/bootstrap.php` (поднимает
+`Application`, чтобы `config()`/`auth()`/`session()` резолвились). В репозитории
+есть набор юнит-тестов ядра (`tests/Unit/*`): роутер, Auth, Crypt/Hash, поиск,
+UI-компоненты, модели, мессенджер, уведомления и др. Базовый `Tests\TestCase`
+даёт одноразовую in-memory SQLite через `freshDatabase()`:
+
+```php
+final class ProductTest extends \Tests\TestCase
+{
+    protected function setUp(): void
+    {
+        $db = $this->freshDatabase();
+        $db->execute('CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, ...)');
+    }
+
+    public function test_create(): void
+    {
+        $p = \Products\Models\Product::create(['name' => 'Widget', /* … */]);
+        $this->assertSame('Widget', \Products\Models\Product::find((int) $p->id)->name);
+    }
+}
+```
+
 ## TestCase
 
 ```php

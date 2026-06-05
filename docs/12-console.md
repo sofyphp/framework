@@ -31,10 +31,31 @@
 
 | Команда | Описание |
 |---------|---------|
-| `php sofy config:cache` | Кэшировать конфиг |
+| `php sofy config:cache` | Кэшировать конфиг (env запекается в один файл) |
 | `php sofy config:clear` | Очистить кэш конфига |
 | `php sofy cache:clear` | Очистить application cache |
 | `php sofy view:clear` | Очистить скомпилированные шаблоны |
+
+### Производительность
+
+| Команда | Описание |
+|---------|---------|
+| `php sofy optimize` | config:cache + route:cache + генерация opcache preload-скрипта |
+| `php sofy optimize:clear` | Снять все оптимизации (вернуть live config + routes) |
+| `php sofy ui:build` | Вынести design-CSS/JS в кэшируемые `public/assets/sofy.<hash>.css\|js` |
+| `php sofy ui:clear` | Удалить скомпилированные ассеты (вернуть инлайн) |
+
+Подробнее — [Производительность](16-performance.md).
+
+### Поиск
+
+| Команда | Описание |
+|---------|---------|
+| `php sofy search:import "App\Models\Post"` | Проиндексировать все строки модели |
+| `php sofy search:import "..." --fresh` | Очистить индекс и переиндексировать |
+| `php sofy search:flush ["..."]` | Очистить индекс (модели или весь) |
+
+Подробнее — [Поиск](17-search.md).
 
 ### Миграции
 

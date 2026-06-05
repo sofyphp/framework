@@ -199,6 +199,7 @@ UI::form('/users', 'POST')
     ->password('Пароль', 'password')
     ->number('Возраст', 'age')
     ->select('Роль', 'role', ['admin' => 'Admin', 'user' => 'User'], selected: 'user')
+    ->combobox('Товар', 'product_id', $options, placeholder: 'Поиск…')  // searchable select
     ->radio('Тип', 'type', ['free' => 'Free', 'pro' => 'Pro'], selected: 'free')
     ->textarea('Bio', 'bio', rows: 5)
     ->checkbox('Активен', 'is_active', checked: true)
@@ -211,6 +212,66 @@ UI::form('/users', 'POST')
 ```
 
 `UI::form()` автоматически добавляет CSRF-токен и `_method` при PUT/PATCH/DELETE.
+
+---
+
+## Поиск и чат
+
+```php
+// Searchable select — фильтрует опции по вводу (в отличие от <select> остаётся
+// удобным и на сотнях вариантов). Локально или через эндпоинт.
+UI::combobox('product_id', $options, selected: $id);
+UI::combobox('product_id', [])->endpoint('/admin/products/search'); // Search-backed
+
+// Чат-тред: пузыри «свои/чужие» + поле ввода. Живые обновления через polling,
+// апгрейд до WebSocket. См. docs/18-messenger.md.
+UI::chat($messages, sendUrl: '/admin/messages/5/send',
+         pollUrl: '/admin/messages/5/poll', currentUserId: $me);
+
+// Список диалогов (компаньон к чату).
+UI::chatList($items);  // [{title, preview, unread, href, active}]
+```
+
+Поисковый движок за `->endpoint()` — см. [Поиск](17-search.md). Полный пример
+мессенджера — [Мессенджер](18-messenger.md).
+
+---
+
+## Цвет компонента
+
+Любому компоненту можно переопределить акцентный цвет на инстансе — `->color()`.
+По умолчанию используется цвет темы; компонент читает `var(--c, <дефолт>)`, а для
+заливок/границ (badge/tag/alert) цвет выводится из любого значения через
+`color-mix()`.
+
+```php
+UI::badge('VIP')->color('#7c5cff');
+UI::button('Удалить', '#')->color('crimson');
+UI::tag('php')->color('#0a7');
+UI::alert('Внимание', 'info')->color('teal');
+UI::progress(70)->color('var(--accent2)');
+UI::stat('Доход', '$42k')->color('#1f9d55');
+```
+
+Принимает hex, `rgb()/rgba()/hsl()/hsla()`, `var(--name)` или CSS-имя цвета.
+Значение санитизируется (whitelist) — попадает в `style`-атрибут, поэтому
+CSS-инъекция/XSS отбрасываются. Поддержано: Badge, Button, Tag, Alert, Stat,
+Progress; остальные компоненты наследуют метод и подключаются по мере обновления.
+
+---
+
+## Браузерные уведомления
+
+`sofyNotify` доступен на каждой странице — desktop-уведомление со звуком (звук
+синтезируется через WebAudio, без аудио-файла) + toast-фолбэк. Любой
+`$user->notify(...)` с `title`/`body`/`url` всплывает в админке. Детали —
+[Уведомления](19-notifications.md).
+
+```js
+sofyNotify.show({ title: 'Сохранено', body: 'Изменения применены', url: '/admin' });
+sofyNotify.beep();      // только звук
+sofyNotify.request();   // запросить разрешение
+```
 
 ---
 

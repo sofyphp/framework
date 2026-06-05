@@ -66,7 +66,31 @@ pure waste. Setting `validate_timestamps=0` removes the stat calls entirely.
 reload FPM after each deploy (`systemctl reload php8.5-fpm`) or your changes
 won't take effect. Never set this on a box where you edit code live.
 
-## Lever 3 — route & config caches (`php sofy optimize`)
+## Lever 3 — UI asset compiler (`php sofy ui:build`)
+
+Out of the box every page inlines the whole design system — ~57 KB CSS + ~23 KB
+JS — into every HTML response, re-sent and re-parsed each request, never cached.
+`php sofy ui:build` extracts them into hashed static files
+`public/assets/sofy.<hash>.css|js` and `Page::render()` then emits cached
+`<link>`/`<script src>` instead of the inline blocks.
+
+```bash
+php sofy ui:build      # compile → cached external assets
+php sofy ui:clear      # revert to inline (default, zero build step)
+```
+
+Rendering straight from PHP still works with no build — the compiler is opt-in.
+Add cache headers at the web server so the browser keeps the assets:
+
+```nginx
+location /assets/ { expires 1y; add_header Cache-Control "public, immutable"; }
+```
+
+The hashed filename busts the cache on rebuild. Force inline even when compiled
+with `UI_INLINE=true` (handy while editing component styles). Pages shed ~80 KB
+each and the CSS/JS is downloaded once and reused across every page.
+
+## Lever 4 — route & config caches (`php sofy optimize`)
 
 Two of the framework's per-request costs are pure repetition:
 

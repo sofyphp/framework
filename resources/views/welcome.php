@@ -35,6 +35,8 @@ echo UI::page(__('ui.welcome.title'))
             . '<div class="sofy-btn-group" style="justify-content:center">'
             . UI::button(__('ui.welcome.btn_ui'),   '/ui-demo', 'primary', 'lg')
             . UI::button(__('ui.welcome.btn_docs'), '/docs',    'ghost',   'lg')
+            . UI::button('GitHub', 'https://github.com/sofyphp/framework', 'ghost', 'lg')
+                ->hx('target', '_blank')->hx('rel', 'noopener noreferrer')
             . '</div>'
             . '</div>'
         ),
