@@ -31,9 +31,9 @@ class Tag extends Component
         $inner = $this->e($this->label) . $remove;
 
         if ($this->href !== null) {
-            return '<a href="' . $this->e($this->href) . '" class="' . $cls . '">' . $inner . '</a>';
+            return '<a href="' . $this->e($this->href) . '" class="' . $cls . '"' . $this->colorAttr() . '>' . $inner . '</a>';
         }
 
-        return '<span class="' . $cls . '">' . $inner . '</span>';
+        return '<span class="' . $cls . '"' . $this->colorAttr() . '>' . $inner . '</span>';
     }
 }

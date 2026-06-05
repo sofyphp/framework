@@ -5,6 +5,45 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.10.0 — 2026-06-05
+
+**UI components can be recolored per instance — `->color()` on any component,
+not just the fixed theme accent.**
+
+Components hardcoded the theme accent (or a small set of named variants). Now
+the `Component` base has a `color()` modifier:
+
+```php
+UI::badge('VIP')->color('#7c5cff');
+UI::button('Delete', '#')->color('crimson');
+UI::tag('php')->color('#0a7');
+UI::alert('Heads up', 'info')->color('teal');
+UI::progress(70)->color('var(--accent2)');
+UI::stat('Revenue', '$42k')->color('#1f9d55');
+```
+
+How it works:
+
+  • `->color()` sets an inline `--c` custom property on the component's root.
+  • Component CSS reads `var(--c, <theme default>)`, and for tinted surfaces
+    (badge/tag/alert) derives the fill/border from any color via `color-mix()`
+    — so one rule produces the right translucent look for ANY color, and falls
+    back to the theme accent when no color is set.
+  • Accepts hex (`#rgb`/`#rrggbb`/`#rrggbbaa`), `rgb()`/`rgba()`/`hsl()`/`hsla()`,
+    `var(--name)`, or a CSS color keyword.
+
+The value lands in a `style` attribute, so it's whitelist-sanitized: only
+well-formed color tokens are allowed. CSS-injection and XSS attempts
+(`red;}…`, `"><script>`) are rejected and produce no `--c`.
+
+Supported so far: Badge, Button (filled + ghost), Tag, Alert, Stat, Progress.
+Other components inherit the `color()` method and opt in as their CSS is
+updated.
+
+Verified: hex/keyword/rgb()/var() all render `--c`; no color → no style
+attribute; injection + XSS rejected; pages render with the color-mix rules
+present, no fatals, lint clean.
+
 ## v0.9.1 — 2026-06-05
 
 **Refactor: the Messenger conversation screen is built from UI components, not

@@ -34,13 +34,14 @@ class Button extends Component
                 '<form action="%s" method="POST" style="display:inline">'
                 . '<input type="hidden" name="_method" value="%s">'
                 . '<input type="hidden" name="_token" value="%s">'
-                . '<button type="submit" class="%s"%s>%s</button>'
+                . '<button type="submit" class="%s"%s%s>%s</button>'
                 . '</form>',
                 $this->e($this->href),
                 $this->e(strtoupper($this->method)),
                 $this->e($token),
                 $cls,
                 $confirm,
+                $this->colorAttr(),
                 $this->e($this->label)
             );
         }
@@ -50,11 +51,12 @@ class Button extends Component
             : '';
 
         return sprintf(
-            '<a href="%s" class="%s"%s%s>%s</a>',
+            '<a href="%s" class="%s"%s%s%s>%s</a>',
             $this->e($this->href),
             $cls,
             $confirm,
             $this->hxString(),
+            $this->colorAttr(),
             $this->e($this->label)
         );
     }

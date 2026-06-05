@@ -30,7 +30,7 @@ class Progress extends Component
             $header = '<div class="sofy-progress-hdr">' . $label . $pctStr . '</div>';
         }
 
-        return '<div class="sofy-progress">'
+        return '<div class="sofy-progress"' . $this->colorAttr() . '>'
             . $header
             . '<div class="sofy-progress-track ' . $this->e($this->size) . '">'
             . '<div class="sofy-progress-fill ' . $this->e($this->variant) . '" style="width:' . $pct . '%"></div>'

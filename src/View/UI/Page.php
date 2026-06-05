@@ -260,6 +260,18 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .sofy-badge-danger{background:rgba(192,120,72,.13);border-color:rgba(192,120,72,.3);color:#c08464}
 .sofy-badge-info{background:rgba(92,142,191,.13);border-color:rgba(92,142,191,.3);color:#7aafd0}
 .sofy-badge-accent{background:rgba(217,119,87,.13);border-color:rgba(217,119,87,.3);color:var(--accent)}
+.sofy-badge[style*="--c"]{background:color-mix(in srgb,var(--c) 14%,transparent);border-color:color-mix(in srgb,var(--c) 32%,transparent);color:var(--c)}
+/* Per-instance accent color via ->color() (sets --c). color-mix derives the
+   tinted fill/border for any color; falls back to the theme accent if unset. */
+.sofy-tag[style*="--c"]{background:color-mix(in srgb,var(--c) 13%,transparent);border-color:color-mix(in srgb,var(--c) 30%,transparent);color:var(--c)}
+.sofy-alert[style*="--c"]{background:color-mix(in srgb,var(--c) 11%,transparent);border-color:color-mix(in srgb,var(--c) 28%,transparent)}
+.sofy-alert[style*="--c"] .sofy-alert-icon,.sofy-alert[style*="--c"] .sofy-alert-title{color:var(--c)}
+.sofy-btn[style*="--c"]{background:var(--c);border-color:var(--c);color:#fff;box-shadow:none}
+.sofy-btn[style*="--c"]:hover{background:color-mix(in srgb,var(--c) 85%,#000);border-color:color-mix(in srgb,var(--c) 85%,#000);transform:translateY(-1px)}
+.sofy-btn-ghost[style*="--c"]{background:transparent;border-color:color-mix(in srgb,var(--c) 45%,transparent);color:var(--c)}
+.sofy-btn-ghost[style*="--c"]:hover{background:color-mix(in srgb,var(--c) 12%,transparent);color:var(--c)}
+.sofy-stat[style*="--c"] .sofy-stat-val{color:var(--c)}
+.sofy-progress[style*="--c"] .sofy-progress-fill{background:var(--c)}
 
 /* button */
 .sofy-btn{display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 18px;border-radius:12px;text-decoration:none;border:1px solid transparent;cursor:pointer;transition:background var(--t),border-color var(--t),color var(--t),box-shadow var(--t),transform var(--t);font-family:var(--font);white-space:nowrap;line-height:1}

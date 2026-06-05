@@ -14,7 +14,7 @@ class Badge extends Component
 
     public function render(): string
     {
-        return '<span class="sofy-badge sofy-badge-' . $this->e($this->variant) . '">'
+        return '<span class="sofy-badge sofy-badge-' . $this->e($this->variant) . '"' . $this->colorAttr() . '>'
             . $this->e($this->label)
             . '</span>';
     }

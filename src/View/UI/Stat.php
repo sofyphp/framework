@@ -31,11 +31,12 @@ class Stat extends Component
             : '';
 
         return sprintf(
-            '<div class="sofy-stat">'
+            '<div class="sofy-stat"%s>'
             . '<div class="sofy-stat-lbl">%s</div>'
             . '<div class="sofy-stat-val">%s</div>'
             . '%s%s'
             . '</div>',
+            $this->colorAttr(),
             $this->e($this->label),
             $this->digits((string) $this->value),
             $trend,

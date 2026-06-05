@@ -34,11 +34,12 @@ class Alert extends Component
             : $this->renderPart($this->message);
 
         return sprintf(
-            '<div class="sofy-alert sofy-alert-%s">'
+            '<div class="sofy-alert sofy-alert-%s"%s>'
             . '<span class="sofy-alert-icon">%s</span>'
             . '<div class="sofy-alert-body">%s</div>'
             . '</div>',
             $this->e($this->type),
+            $this->colorAttr(),
             $icon,
             $body
         );
