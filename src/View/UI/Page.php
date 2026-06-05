@@ -323,6 +323,15 @@ textarea.sofy-form-ctrl{resize:vertical;min-height:96px}
 .sofy-chat-input{flex:1;resize:none;max-height:140px;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:9px 13px;color:var(--text);font-family:var(--font);font-size:13.5px;outline:none;line-height:1.45}
 .sofy-chat-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.1)}
 .sofy-chat-send{flex-shrink:0}
+.sofy-chatlist-item{display:block;padding:10px 12px;border-radius:10px;text-decoration:none;color:var(--text);margin-bottom:4px;transition:background var(--t)}
+.sofy-chatlist-item:hover{background:rgba(0,0,0,.03)}
+[data-theme="dark"] .sofy-chatlist-item:hover{background:rgba(255,255,255,.04)}
+.sofy-chatlist-item.active{background:rgba(217,119,87,.12)}
+.sofy-chatlist-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sofy-chatlist-name{font-weight:600;font-size:13px}
+.sofy-chatlist-preview{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sofy-chatlist-badge{background:var(--accent);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;flex-shrink:0}
+.sofy-chatlist-empty{color:var(--muted);font-size:13px;padding:8px}
 #sofy-notify-toasts{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:340px}
 .sofy-notify-toast{background:var(--surf);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:11px 14px;box-shadow:0 12px 32px -12px rgba(0,0,0,.35);opacity:0;transform:translateX(20px);transition:opacity .25s,transform .25s}
 .sofy-notify-toast.in{opacity:1;transform:none}

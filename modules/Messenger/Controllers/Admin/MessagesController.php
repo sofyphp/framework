@@ -30,21 +30,19 @@ class MessagesController
 
         if ($this->migrationsMissing()) return $this->needsMigration();
 
-        $channels = $this->channelsFor($me);
-        $users    = $this->otherUsers($me);
+        $sidebar = UI::grid(1, [
+            UI::card('Диалоги', UI::chatList($this->channelListItems($me, 0))),
+            $this->startCard($this->otherUsers($me)),
+        ]);
+        $main = UI::card(null, UI::emptyState(
+            'Выберите диалог',
+            'Откройте диалог слева или начните новый.',
+            icon: '💬',
+        ));
 
         return Admin::page('Сообщения')
             ->header('Сообщения')
-            ->add(
-                UI::raw('<div class="sofy-msg-layout">'),
-                UI::raw('<div class="sofy-msg-list">'),
-                $this->channelListCard($channels, 0),
-                $this->startCard($users),
-                UI::raw('</div><div class="sofy-msg-main">'),
-                UI::card(null, UI::raw('<div class="sofy-msg-placeholder">Выберите диалог слева или начните новый.</div>')),
-                UI::raw('</div></div>'),
-                UI::raw($this->styles()),
-            )
+            ->add(UI::sidebarLayout($sidebar, $main, width: '300px'))
             ->response();
     }
 
@@ -77,17 +75,11 @@ class MessagesController
             room: 'chat.' . (int) $channel->id,
         );
 
+        $sidebar = UI::card('Диалоги', UI::chatList($this->channelListItems($me, (int) $channel->id)));
+
         return Admin::page($title)
             ->header($title, UI::button('← Все диалоги', '/admin/messages', 'ghost'))
-            ->add(
-                UI::raw('<div class="sofy-msg-layout">'),
-                UI::raw('<div class="sofy-msg-list">'),
-                $this->channelListCard($this->channelsFor($me), (int) $channel->id),
-                UI::raw('</div><div class="sofy-msg-main">'),
-                $chat,
-                UI::raw('</div>'),
-                UI::raw($this->styles()),
-            )
+            ->add(UI::sidebarLayout($sidebar, $chat, width: '300px'))
             ->response();
     }
 
@@ -228,8 +220,12 @@ class MessagesController
         return $t ? date('d.m H:i', $t) : $ts;
     }
 
-    /** @return list<array{id:int,title:string,preview:string,unread:int,active:bool}> */
-    private function channelsFor(int $me): array
+    /**
+     * Conversation rows shaped for UI::chatList.
+     *
+     * @return list<array{title:string,preview:string,unread:int,href:string,active:bool}>
+     */
+    private function channelListItems(int $me, int $activeId): array
     {
         $rows = Connection::getDefault()->query(
             'SELECT c.id, c.type, c.name
@@ -244,10 +240,11 @@ class MessagesController
             $channel = new Channel((array) $r);
             $channel->id = $cid;
             $out[] = [
-                'id'      => $cid,
                 'title'   => $this->channelTitle($channel, $me),
                 'preview' => $this->lastPreview($cid),
                 'unread'  => $this->channelUnread($cid, $me),
+                'href'    => '/admin/messages/' . $cid,
+                'active'  => $cid === $activeId,
             ];
         }
         return $out;
@@ -308,21 +305,6 @@ class MessagesController
         return $out;
     }
 
-    private function channelListCard(array $channels, int $activeId): Card
-    {
-        $html = '';
-        foreach ($channels as $c) {
-            $active = $c['id'] === $activeId ? ' active' : '';
-            $badge  = $c['unread'] > 0 ? '<span class="sofy-msg-badge">' . (int) $c['unread'] . '</span>' : '';
-            $html  .= '<a class="sofy-msg-item' . $active . '" href="/admin/messages/' . (int) $c['id'] . '">'
-                . '<div class="sofy-msg-item-top"><span class="sofy-msg-name">' . htmlspecialchars($c['title'], ENT_QUOTES, 'UTF-8') . '</span>' . $badge . '</div>'
-                . '<div class="sofy-msg-preview">' . htmlspecialchars($c['preview'], ENT_QUOTES, 'UTF-8') . '</div>'
-                . '</a>';
-        }
-        if ($html === '') $html = '<div class="sofy-msg-empty">Диалогов пока нет.</div>';
-        return UI::card('Диалоги', UI::raw($html));
-    }
-
     private function startCard(array $users): Card
     {
         $opts = [];
@@ -364,23 +346,5 @@ class MessagesController
                 'Нет таблиц мессенджера',
             ))
             ->response();
-    }
-
-    private function styles(): string
-    {
-        return <<<CSS
-        <style>
-            .sofy-msg-layout{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
-            .sofy-msg-item{display:block;padding:10px 12px;border-radius:10px;text-decoration:none;color:var(--text);margin-bottom:4px}
-            .sofy-msg-item:hover{background:rgba(0,0,0,.03)}
-            .sofy-msg-item.active{background:rgba(217,119,87,.12)}
-            .sofy-msg-item-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-            .sofy-msg-name{font-weight:600;font-size:13px}
-            .sofy-msg-preview{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-            .sofy-msg-badge{background:var(--accent);color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;flex-shrink:0}
-            .sofy-msg-empty,.sofy-msg-placeholder{color:var(--muted);font-size:13px;padding:8px}
-            @media(max-width:760px){.sofy-msg-layout{grid-template-columns:1fr}}
-        </style>
-        CSS;
     }
 }

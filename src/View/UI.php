@@ -26,6 +26,7 @@ use Sofy\View\UI\Breadcrumb;
 use Sofy\View\UI\Button;
 use Sofy\View\UI\Card;
 use Sofy\View\UI\Chat;
+use Sofy\View\UI\ChatList;
 use Sofy\View\UI\Combobox;
 use Sofy\View\UI\Code;
 use Sofy\View\UI\Divider;
@@ -506,6 +507,16 @@ class UI
         string $placeholder = 'Сообщение…',
     ): Chat {
         return new Chat($messages, $sendUrl, $pollUrl, $currentUserId, $wsUrl, $room, $placeholder);
+    }
+
+    /**
+     * A list of conversations (companion to UI::chat). See Sofy\View\UI\ChatList.
+     *
+     * @param list<array{title:string,preview?:string,unread?:int,href:string,active?:bool}> $items
+     */
+    public static function chatList(array $items, string $empty = 'Диалогов пока нет.'): ChatList
+    {
+        return new ChatList($items, $empty);
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────

@@ -5,6 +5,25 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.9.1 — 2026-06-05
+
+**Refactor: the Messenger conversation screen is built from UI components, not
+raw HTML in the controller.**
+
+`MessagesController` had been assembling its layout with `UI::raw('<div …>')`
+scaffolding and a hand-rolled `<a class="sofy-msg-item">` conversation list plus
+a controller-side `<style>` block — exactly the "we have our own UI, don't write
+HTML" anti-pattern.
+
+  • New core component **`UI::chatList($items)`** (`Sofy\View\UI\ChatList`) —
+    a conversation list (title, preview, unread badge, active state), companion
+    to `UI::chat`. Its CSS ships from Page.
+  • `MessagesController::index/show` now compose `UI::sidebarLayout` +
+    `UI::card` + `UI::chatList` + `UI::emptyState` + `UI::form`. The raw layout
+    divs, the hand-built list, and the controller `styles()` block are gone.
+
+No behaviour change — same screen, now assembled from components.
+
 ## v0.9.0 — 2026-06-05
 
 **New core feature: browser notifications with sound. Any `$user->notify(...)`
