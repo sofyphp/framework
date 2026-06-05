@@ -323,6 +323,14 @@ textarea.sofy-form-ctrl{resize:vertical;min-height:96px}
 .sofy-chat-input{flex:1;resize:none;max-height:140px;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:9px 13px;color:var(--text);font-family:var(--font);font-size:13.5px;outline:none;line-height:1.45}
 .sofy-chat-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.1)}
 .sofy-chat-send{flex-shrink:0}
+#sofy-notify-toasts{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:340px}
+.sofy-notify-toast{background:var(--surf);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:11px 14px;box-shadow:0 12px 32px -12px rgba(0,0,0,.35);opacity:0;transform:translateX(20px);transition:opacity .25s,transform .25s}
+.sofy-notify-toast.in{opacity:1;transform:none}
+.sofy-notify-t-title{font-weight:700;font-size:13px;color:var(--bright);margin-bottom:2px}
+.sofy-notify-t-body{font-size:12.5px;color:var(--muted);word-break:break-word}
+.sofy-notify-bell{background:none;border:1px solid var(--border);border-radius:9px;width:34px;height:34px;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;transition:color var(--t),border-color var(--t)}
+.sofy-notify-bell:hover{color:var(--text)}
+.sofy-notify-bell.on{color:var(--accent);border-color:var(--accent)}
 .sofy-form-hint{font-size:11px;color:var(--muted);margin-top:4px}
 .sofy-form-err{font-size:11px;color:var(--danger);margin-top:4px}
 .sofy-form-check{display:flex;align-items:center;gap:10px;cursor:pointer}
@@ -1159,6 +1167,101 @@ var sofyChat=(function(){
     }
     document.querySelectorAll('.sofy-chat').forEach(init);
     return{send:send,key:key,poll:poll};
+})();
+
+/* ── Browser notifications (desktop + sound), zero-asset ── */
+var sofyNotify=(function(){
+    var KEY='sofy-notify-enabled';
+    function supported(){return 'Notification'in window;}
+    function enabled(){return localStorage.getItem(KEY)==='1';}
+    function setEnabled(v){localStorage.setItem(KEY,v?'1':'0');}
+    function request(){
+        if(!supported())return Promise.resolve('unsupported');
+        return Notification.requestPermission?Notification.requestPermission():Promise.resolve(Notification.permission);
+    }
+    /* short two-tone chime via WebAudio — no audio file needed */
+    var actx=null;
+    function beep(){
+        try{
+            actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+            if(actx.state==='suspended')actx.resume();
+            [[880,0],[1180,0.12]].forEach(function(p){
+                var o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime+p[1];
+                o.type='sine';o.frequency.value=p[0];
+                g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.18,t+0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+                o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+0.2);
+            });
+        }catch(e){}
+    }
+    function toast(n){
+        var wrap=document.getElementById('sofy-notify-toasts');
+        if(!wrap){wrap=document.createElement('div');wrap.id='sofy-notify-toasts';document.body.appendChild(wrap);}
+        var el=document.createElement('div');el.className='sofy-notify-toast';
+        el.innerHTML='<div class="sofy-notify-t-title"></div><div class="sofy-notify-t-body"></div>';
+        el.querySelector('.sofy-notify-t-title').textContent=n.title||'';
+        el.querySelector('.sofy-notify-t-body').textContent=n.body||'';
+        if(n.url)el.style.cursor='pointer',el.onclick=function(){location.href=n.url;};
+        wrap.appendChild(el);
+        requestAnimationFrame(function(){el.classList.add('in');});
+        setTimeout(function(){el.classList.remove('in');setTimeout(function(){el.remove();},250);},5000);
+    }
+    function show(n){
+        if(!n||!n.title)return;
+        if(!n.silent)beep();
+        var hidden=document.hidden;
+        if(enabled()&&supported()&&Notification.permission==='granted'&&hidden){
+            try{
+                var no=new Notification(n.title,{body:n.body||'',tag:n.tag||'',icon:'/favicon.ico'});
+                if(n.url)no.onclick=function(){window.focus();location.href=n.url;no.close();};
+                return;
+            }catch(e){}
+        }
+        toast(n);
+    }
+    /* poll the admin feed when the page advertises it */
+    var seen={};
+    function feed(){
+        var meta=document.querySelector('meta[name="sofy-notify-feed"]');
+        if(!meta)return;
+        fetch(meta.content,{headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){return r.json();})
+            .then(function(d){
+                var items=(d&&d.notifications)||[];var ids=[];
+                items.forEach(function(n){if(seen[n.id])return;seen[n.id]=1;ids.push(n.id);show(n);});
+                if(ids.length){
+                    var seenUrl=meta.getAttribute('data-seen');
+                    if(seenUrl){var fd=new FormData();ids.forEach(function(i){fd.append('ids[]',i);});
+                        var tok=document.querySelector('meta[name="sofy-csrf"]');if(tok)fd.append('_token',tok.content);
+                        fetch(seenUrl,{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).catch(function(){});}
+                }
+            }).catch(function(){});
+    }
+    function startPolling(){
+        var meta=document.querySelector('meta[name="sofy-notify-feed"]');
+        if(!meta)return;
+        // prime "seen" with whatever is already unread so we don't blast a
+        // wall of notifications on first load — only NEW ones alert.
+        fetch(meta.content,{headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){return r.json();})
+            .then(function(d){((d&&d.notifications)||[]).forEach(function(n){seen[n.id]=1;});})
+            .finally(function(){setInterval(feed,6000);});
+    }
+    /* enable bell (admin topbar) */
+    function toggle(btn){
+        if(enabled()){setEnabled(false);btn.classList.remove('on');btn.title='Включить уведомления';return;}
+        request().then(function(p){
+            if(p==='granted'){setEnabled(true);btn.classList.add('on');btn.title='Уведомления включены';beep();}
+            else{setEnabled(false);alert('Браузер не дал разрешение на уведомления.');}
+        });
+    }
+    document.addEventListener('DOMContentLoaded',function(){
+        document.querySelectorAll('.sofy-notify-bell').forEach(function(b){
+            if(enabled()&&supported()&&Notification.permission==='granted')b.classList.add('on');
+        });
+        startPolling();
+    });
+    return{show:show,beep:beep,request:request,toggle:toggle,enabled:enabled};
 })();
 </script>
 JS;

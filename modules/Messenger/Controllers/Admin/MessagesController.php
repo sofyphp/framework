@@ -112,6 +112,8 @@ class MessagesController
         ]);
         Participant::markRead((int) $channel->id, $me);
 
+        $this->notifyOthers($channel, $me, $body);
+
         $formatted = $this->formatMessages([$msg], $me);
         return $this->json(['message' => $formatted[0] ?? null]);
     }
@@ -158,6 +160,32 @@ class MessagesController
 
         $channel = Channel::createGroup($name, $me, $ids);
         return Response::redirect('/admin/messages/' . (int) $channel->id);
+    }
+
+    /**
+     * Drop a database notification to every other participant so the core
+     * browser-notification poller alerts them (desktop + sound) anywhere in
+     * the admin. Best-effort — a missing notifications table never blocks the
+     * message itself.
+     */
+    private function notifyOthers(Channel $channel, int $me, string $body): void
+    {
+        try {
+            $sender  = User::find($me);
+            $name    = $sender !== null ? (string) $sender->getAttribute('name') : ('User #' . $me);
+            $preview = mb_strlen($body) > 80 ? mb_substr($body, 0, 80) . '…' : $body;
+            $notice  = new \Messenger\Notifications\NewMessageNotification($name, $preview, (int) $channel->id);
+
+            foreach ($channel->participantIds() as $uid) {
+                if ($uid === $me) continue;
+                $u = User::find($uid);
+                if ($u !== null && method_exists($u, 'notify')) {
+                    $u->notify($notice);
+                }
+            }
+        } catch (\Throwable) {
+            // notifications optional — never break sending a message
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

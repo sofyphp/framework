@@ -15,7 +15,10 @@ class DatabaseChannel implements NotificationChannel
         $data = $notification->toDatabase($notifiable);
 
         Connection::getDefault()->table('notifications')->insert([
-            'id'               => $notification->id,
+            // No 'id' — the notifications table uses an auto-increment id().
+            // Notification::$id is a hex string; inserting it into the
+            // auto-increment integer id was a datatype mismatch on strict
+            // databases (SQLite, Postgres). Present since the initial commit.
             'type'             => $notification::class,
             'notifiable_type'  => $notifiable::class,
             'notifiable_id'    => $notifiable->id ?? null,

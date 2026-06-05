@@ -165,9 +165,23 @@ class AdminPage
 
     private function renderTopbar(): string
     {
+        $panel  = AdminPanel::instance();
+        $extras = '';
+
+        // Browser-notification wiring — only when auth is on and someone is in.
+        // The feed/csrf metas drive sofyNotify (Page JS); the bell toggles
+        // desktop notifications + sound for this browser.
+        if ($panel->requireAuth && \Sofy\Auth\Auth::check()) {
+            $token = function_exists('csrf_token') ? csrf_token() : '';
+            $extras = '<meta name="sofy-notify-feed" content="/admin/notifications/feed" data-seen="/admin/notifications/seen">'
+                . '<meta name="sofy-csrf" content="' . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . '">'
+                . '<button type="button" class="sofy-notify-bell" title="Включить уведомления" '
+                . 'onclick="sofyNotify.toggle(this)" aria-label="Уведомления">' . Icons::BELL . '</button>';
+        }
+
         return '<header class="sofy-admin-topbar">'
              . '<div class="sofy-admin-topbar-title">' . htmlspecialchars($this->title, ENT_QUOTES, 'UTF-8') . '</div>'
-             . '<div class="sofy-admin-topbar-actions"></div>'
+             . '<div class="sofy-admin-topbar-actions">' . $extras . '</div>'
              . '</header>';
     }
 

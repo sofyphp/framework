@@ -15,6 +15,7 @@ use Sofy\Admin\Controllers\AuthController;
 use Sofy\Admin\Controllers\DashboardController;
 use Sofy\Admin\Controllers\DatabaseController;
 use Sofy\Admin\Controllers\MarketplaceController;
+use Sofy\Admin\Controllers\NotificationsController;
 use Sofy\Admin\Controllers\SystemController;
 use Sofy\Admin\Controllers\UpdateController;
 use Sofy\Admin\Controllers\UsersController;
@@ -36,6 +37,10 @@ $router->post('/admin/logout', [AuthController::class, 'logout']);
 $router->group(['prefix' => 'admin', 'middleware' => [EnsureAdmin::class]], function (Router $router): void {
     $router->get('/',      [DashboardController::class, 'index']);
     $router->get('/users', [UsersController::class,     'index']);
+
+    // ── Browser notifications feed (powers sofyNotify desktop alerts) ────────
+    $router->get ('/notifications/feed', [NotificationsController::class, 'feed']);
+    $router->post('/notifications/seen', [NotificationsController::class, 'seen']);
 
     // ── System info ─────────────────────────────────────────────────────────
     $router->get('/system',         [SystemController::class, 'overview']);

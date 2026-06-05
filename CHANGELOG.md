@@ -5,6 +5,65 @@ version — `/admin/system/update` parses sections starting at `## vX.Y.Z`
 and shows them as release notes. Falls back to GitHub Releases when the
 file is missing.
 
+## v0.9.0 — 2026-06-05
+
+**New core feature: browser notifications with sound. Any `$user->notify(...)`
+pops a desktop notification + chime anywhere in the admin — zero-asset, with a
+toast fallback.**
+
+#### `sofyNotify` (framework core, in Page)
+
+  • Web Notifications API for desktop alerts when the tab is backgrounded and
+    permission is granted; an in-page toast fallback otherwise.
+  • **Zero-asset sound** — a short two-tone chime synthesized with WebAudio
+    (oscillator), no audio file shipped.
+  • Global JS: `sofyNotify.show({title,body,url,tag,silent})`, `.beep()`,
+    `.request()`, `.enabled()`.
+  • Auto-poller: reads `<meta name="sofy-notify-feed">` and surfaces new
+    notifications, priming "seen" on load so you never get a wall of old
+    alerts.
+
+#### Core feed + admin wiring
+
+  • `Sofy\Admin\Controllers\NotificationsController` — `GET /admin/notifications/feed`
+    (unread notifications as JSON) + `POST /admin/notifications/seen` (mark
+    read), behind EnsureAdmin.
+  • The admin topbar gets a **bell** to enable desktop notifications for the
+    browser (browsers require a user gesture for permission) and injects the
+    feed + CSRF metas. Shown only when auth is on and signed in.
+  • Rides entirely on the existing `notifications` table + `Notifiable` trait
+    (`User` already uses it) — no new tables, no config.
+
+#### Data contract
+
+A notification surfaces if its `toDatabase()` returns a `title` (+ optional
+`body`, `url`, `tag`). `subject`/`message` accepted as aliases.
+
+#### Fix: database notifications never stored on strict DBs
+
+`DatabaseChannel` inserted `'id' => $notification->id` — a hex string — into
+the notifications table's auto-increment integer `id`, a datatype mismatch on
+SQLite/Postgres (present since the initial commit). Removed; the auto-increment
+id is used. Database notifications now actually persist.
+
+#### Messenger integration
+
+`NewMessageNotification` is sent to the other participants on every chat
+message, so messages pop a desktop notification with sound anywhere in the
+admin and clicking opens the thread. Best-effort — a missing notifications
+table never blocks sending.
+
+#### Verified
+
+  • End-to-end on SQLite: `$user->notify(new NewMessageNotification(...))`
+    persists (auto-increment integer id) and the feed maps it to
+    title/body/url correctly.
+  • HTTP: feed + seen gated (302→login) and CSRF-protected (419); `sofyNotify`
+    JS, the WebAudio oscillator, and the toast CSS present on every page; no
+    fatals; all touched files lint clean.
+
+Docs: `docs/19-notifications.md`.
+
 ## v0.8.0 — 2026-06-04
 
 **New: a `UI::chat` component and a Messenger module — user-to-user messaging
