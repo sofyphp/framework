@@ -189,6 +189,13 @@ class Page extends Component
     private static ?array $assetCache = null;
     private static bool $assetResolved = false;
 
+    /** Forget the resolved manifest so the next render re-reads it (post-build, tests). */
+    public static function flushAssetCache(): void
+    {
+        self::$assetCache = null;
+        self::$assetResolved = false;
+    }
+
     public static function compiledAssets(): ?array
     {
         if (self::$assetResolved) {

@@ -43,6 +43,9 @@
         "optimize-autoloader": true,
         "preferred-install": "dist"
     },
+    "scripts": {
+        "test": "phpunit --no-coverage"
+    },
     "suggest": {
         "ext-redis": "Required for Redis cache and session drivers (CACHE_DRIVER=redis / SESSION_DRIVER=redis)",
         "ext-pcntl": "Required for graceful Ctrl+C shutdown of the WebSocket server (ws:serve)"

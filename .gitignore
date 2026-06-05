@@ -14,3 +14,5 @@
 !/bootstrap/cache/.gitkeep
 /public/assets/sofy.*.css
 /public/assets/sofy.*.js
+/.phpunit.cache/
+/.phpunit.result.cache
