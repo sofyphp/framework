@@ -44,18 +44,18 @@ responsive HTML with transitions, dark/light mode and i18n built in.
 
 | | |
 |---|---|
-| 🧩 **46+ UI components** | Cards, tables, forms, charts, modals, drawers, tabs… pure PHP, theme-aware, `->color()` any of them |
-| 🛡️ **Secure by default** | Auth-by-default `/admin`, CSRF, secure session cookies, security headers, AES-256, hashing — out of the box |
-| 🗄️ **ORM + migrations** | ActiveRecord, query builder, relations, eager loading, seeders, factories |
-| 🔎 **Search engine** | Zero-dependency inverted index, `Searchable` models, a searchable `UI::combobox` |
-| 💬 **Real-time messaging** | In-admin user-to-user chat (`UI::chat`) — 1:1 & group channels, WebSocket or polling |
-| 🔔 **Browser notifications** | Desktop notifications **with sound** (synthesized, zero-asset) from any `$user->notify()` |
-| 🎛️ **Admin panel** | `/admin` with menu, widgets, DB browser, SQL console, one-click updates |
-| ⚡ **Fast in production** | opcache preload, route/config cache, a UI asset compiler — `php sofy optimize` |
-| 🚀 **One-command deploy** | `sudo php sofy full-install` provisions a whole Linux box; services run under systemd |
-| 🧰 **Rich CLI** | Scaffolding, migrations, queue, scheduler, REPL, service management |
-| 📦 **Modules & marketplace** | Drop a folder in `modules/`, install from a catalog |
-| ✅ **Tested** | PHPUnit core suite — `composer test` |
+| **46+ UI components** | Cards, tables, forms, charts, modals, drawers, tabs… pure PHP, theme-aware, `->color()` any of them |
+| **Secure by default** | Auth-by-default `/admin`, CSRF, secure session cookies, security headers, AES-256, hashing — out of the box |
+| **ORM + migrations** | ActiveRecord, query builder, relations, eager loading, seeders, factories |
+| **Search engine** | Zero-dependency inverted index, `Searchable` models, a searchable `UI::combobox` |
+| **Real-time messaging** | In-admin user-to-user chat (`UI::chat`) — 1:1 & group channels, WebSocket or polling |
+| **Browser notifications** | Desktop notifications **with sound** (synthesized, zero-asset) from any `$user->notify()` |
+| **Admin panel** | `/admin` with menu, widgets, DB browser, SQL console, one-click updates |
+| **Fast in production** | opcache preload, route/config cache, a UI asset compiler — `php sofy optimize` |
+| **One-command deploy** | `sudo php sofy full-install` provisions a whole Linux box; services run under systemd |
+| **Rich CLI** | Scaffolding, migrations, queue, scheduler, REPL, service management |
+| **Modules & marketplace** | Drop a folder in `modules/`, install from a catalog |
+| **Tested** | PHPUnit core suite — `composer test` |
 
 ## Quick start
 
